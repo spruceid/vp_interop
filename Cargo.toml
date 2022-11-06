@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "api",
+    "frontend"
+]
+
+[profile.release]
+opt-level = "s"
