@@ -80,21 +80,19 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             let id = get_id!(ctx);
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/jwt")?;
-            match id_token(id, DBClient {ctx}).await {
+            match id_token(id, &DBClient {ctx}).await {
                 Ok(jwt) => Ok(Response::from_bytes(jwt.as_bytes().to_vec())?.with_headers(headers)),
                 Err(e) => e.into(),
             }
         })
-        .post_async(&format!("{}/:id/response", API_PREFIX), |req, ctx| async move{
+        .post_async(&format!("{}/:id/response", API_PREFIX), |mut req, ctx| async move{
             let id = get_id!(ctx);
-            // TODO what to do with state
-            let url = req.url()?;
-            let query = url.query().unwrap_or_default();
-            let params = match serde_urlencoded::from_str(query) {
+            let query = req.text().await.unwrap_or_default();
+            let params = match serde_urlencoded::from_str(&query) {
                 Ok(p) => p,
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
-            match response(params) {
+            match response(id, params, &DBClient {ctx}).await {
                 Ok(true) => Response::empty(),
                 Ok(false) =>  Ok(Response::empty().unwrap().with_status(400)),
                 Err(e) => e.into()
@@ -106,7 +104,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             headers.append(CacheControl::name().as_ref(), "no-cache")?;
             match status(id, DBClient{ctx}).await {
                 Ok(Some(VPProgress::Started{..})) => Ok(Response::empty().unwrap().with_status(202)),
-                // Ok(Some(ProcessStep::Done(vp))) => Response::from_json(&vp),
+                Ok(Some(VPProgress::Done)) => Response::empty(), // Response::from_json(&vp),
                 Ok(None) => Ok(Response::empty().unwrap().with_status(204)),
                 Err(e) => e.into(),
             }.and_then(|r| r.with_cors(&get_cors()))

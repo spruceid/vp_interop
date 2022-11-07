@@ -120,7 +120,11 @@ impl Component for VerifyPoll {
                         <article aria-busy="true">{"Waiting"}</article>
                 </>
             },
-            VerifyPollState::Done => html! {},
+            VerifyPollState::Done => html! {
+                <>
+                    <article>{"✅"}</article>
+                </>
+            },
         }
     }
 }

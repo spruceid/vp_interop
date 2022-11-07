@@ -110,7 +110,7 @@ struct RequestClaims {
     vp_token: VpToken,
 }
 
-pub async fn id_token(id: Uuid, db: DBClient) -> Result<String, CustomError> {
+pub async fn id_token(id: Uuid, db: &DBClient) -> Result<String, CustomError> {
     // let res = RegistrationMetadata::new();
 
     // let jwk = did_ion::DIDION::generate_key().context("Could not generate key")?;
@@ -180,7 +180,19 @@ pub async fn id_token(id: Uuid, db: DBClient) -> Result<String, CustomError> {
     Ok(jwt)
 }
 
-pub fn response(params: ResponseRequest) -> Result<bool, CustomError> {
+#[derive(Deserialize)]
+pub struct ResponseRequestBase64 {
+    id_token: String,
+    vp_token: String,
+    state: String,
+}
+
+pub async fn response(
+    id: Uuid,
+    params: ResponseRequestBase64,
+    db: &DBClient,
+) -> Result<bool, CustomError> {
+    db.put_vp(id, VPProgress::Done).await?;
     Ok(true)
 }
 

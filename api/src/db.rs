@@ -9,6 +9,7 @@ const TTL: u64 = 300; // 5min
 #[derive(Serialize, Deserialize)]
 pub enum VPProgress {
     Started { nonce: String },
+    Done,
 }
 
 pub struct DBClient {
