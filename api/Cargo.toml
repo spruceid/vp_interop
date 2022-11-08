@@ -26,12 +26,13 @@ did-ion = { path = "../../ssi/did-ion" }
 did-web = { path = "../../ssi/did-web" }
 
 rand = "0.8.4"
-getrandom = { version = "0.2", features = ["js"] }
+# getrandom = { version = "0.2", features = ["js"] }
 chrono = { version = "0.4.19", features = ["wasmbind"] }
-uuid = { version = "0.8", features = ["serde", "v4", "wasm-bindgen"] }
+uuid = { version = "1.2.1", features = ["serde", "v4", "wasm-bindgen", "js"] }
 time = { version = "0.3.16", features = ["wasm-bindgen"] }
 serde_urlencoded = "0.7.1"
 lazy_static = "1.4.0"
+async-trait = "0.1.58"
 
 [dev-dependencies]
 serde_path_to_error = "0.1.8"

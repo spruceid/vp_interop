@@ -1,4 +1,4 @@
-use gloo::timers::callback::Interval;
+use gloo::{timers::callback::Interval, utils::window};
 use image::{DynamicImage, ImageOutputFormat, Luma};
 use qrcode::QrCode;
 use reqwasm::http::Request;
@@ -12,12 +12,15 @@ const REFRESH_INTERVAL: u32 = 3000; // milliseconds
 enum VerifyPollState {
     PreScan {
         img: String,
+        url: String,
         _clock_handle: Interval,
     },
     PostScan {
         _clock_handle: Interval,
     },
-    Done,
+    Done {
+        vc: serde_json::Value,
+    },
 }
 
 pub struct VerifyPoll {
@@ -26,18 +29,30 @@ pub struct VerifyPoll {
 }
 
 pub enum Msg {
-    Tick { status: u16 },
+    Tick { status: MsgStatus },
+}
+
+pub enum MsgStatus {
+    S202,
+    S204,
+    S200(serde_json::Value),
 }
 
 async fn fetch_status(id: Uuid) -> Msg {
-    let status = Request::get(&format!(
+    let resp = Request::get(&format!(
         "https://api.vp.interop.spruceid.xyz/vp/{}/status",
         id
     ))
     .send()
     .await
-    .unwrap()
-    .status();
+    .unwrap();
+    let status = resp.status();
+    let status = match status {
+        202 => MsgStatus::S202,
+        204 => MsgStatus::S204,
+        200 => MsgStatus::S200(resp.json().await.unwrap()),
+        _ => panic!(),
+    };
     Msg::Tick { status }
 }
 
@@ -61,7 +76,7 @@ impl Component for VerifyPoll {
                 .join(&format!("vp/{}/request", uuid))
                 .unwrap()
         );
-        let code = QrCode::new(url).unwrap();
+        let code = QrCode::new(url.clone()).unwrap();
         let image = DynamicImage::ImageLuma8(code.render::<Luma<u8>>().build());
         let mut bytes: Vec<u8> = Vec::new();
         image
@@ -72,6 +87,7 @@ impl Component for VerifyPoll {
         Self {
             state: VerifyPollState::PreScan {
                 img,
+                url,
                 _clock_handle: create_clock_handle(uuid, ctx),
             },
             uuid,
@@ -82,7 +98,7 @@ impl Component for VerifyPoll {
         match msg {
             Msg::Tick { status } => {
                 match status {
-                    202 => {
+                    MsgStatus::S202 => {
                         match self.state {
                             // TODO use better type to express linear progression
                             VerifyPollState::PreScan { .. } => {
@@ -94,15 +110,14 @@ impl Component for VerifyPoll {
                             _ => false,
                         }
                     }
-                    204 => false,
-                    200 => match self.state {
+                    MsgStatus::S204 => false,
+                    MsgStatus::S200(vc) => match self.state {
                         VerifyPollState::PreScan { .. } | VerifyPollState::PostScan { .. } => {
-                            self.state = VerifyPollState::Done;
+                            self.state = VerifyPollState::Done { vc };
                             true
                         }
                         _ => panic!(),
                     },
-                    _ => false, // TODO error?
                 }
             }
         }
@@ -110,21 +125,40 @@ impl Component for VerifyPoll {
 
     fn view(&self, _ctx: &Context<Self>) -> Html {
         match &self.state {
-            VerifyPollState::PreScan { img, .. } => html! {
-                <>
+            VerifyPollState::PreScan { img, url, .. } => {
+                if is_mobile() {
+                    html! {
+                        <a href={url.clone()}><button>{"Open authenticator app"}</button></a>
+                    }
+                } else {
+                    html! {
                         <img alt="QR Code" src={img.clone()} style="display: block; margin-left: auto; margin-right: auto;"/>
-                </>
-            },
+                    }
+                }
+            }
             VerifyPollState::PostScan { .. } => html! {
-                <>
-                        <article aria-busy="true">{"Waiting"}</article>
-                </>
+                <article aria-busy="true">{"Waiting"}</article>
             },
-            VerifyPollState::Done => html! {
+            VerifyPollState::Done { vc } => html! {
                 <>
-                    <article>{"✅"}</article>
+                    <article>
+                        <header>
+                              <a href="#close" aria-label="Close" class="close"></a>
+                              {"✅ Your Verifiable Credential"}
+                        </header>
+                        <pre><code>{serde_json::to_string_pretty(vc).unwrap()}</code></pre>
+                        <footer style="text-align: right">
+                          // <a href="#cancel" role="button" class="secondary">Cancel</a>
+                          <a href="/" role="button">{"Back Home"}</a>
+                        </footer>
+                    </article>
                 </>
             },
         }
     }
+}
+
+fn is_mobile() -> bool {
+    let navigator = window().navigator();
+    navigator.max_touch_points() > 0
 }

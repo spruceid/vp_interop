@@ -1,4 +1,3 @@
-use db::{DBClient, VPProgress};
 use headers::{CacheControl, ContentType, Header};
 use serde_json::json;
 use ssi::jwk::JWK;
@@ -9,6 +8,7 @@ use worker::*;
 mod handlers;
 use handlers::*;
 mod db;
+use db::{cf::CFDBClient, VPProgress};
 mod dids;
 
 // TODO find a replacement for console_* when tracing-wasm or tracing-web are compatible.
@@ -80,7 +80,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             let id = get_id!(ctx);
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/jwt")?;
-            match id_token(id, &DBClient {ctx}).await {
+            match id_token(id, &mut CFDBClient {ctx}).await {
                 Ok(jwt) => Ok(Response::from_bytes(jwt.as_bytes().to_vec())?.with_headers(headers)),
                 Err(e) => e.into(),
             }
@@ -92,7 +92,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 Ok(p) => p,
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
-            match response(id, params, &DBClient {ctx}).await {
+            match response(id, params, &mut CFDBClient {ctx}).await {
                 Ok(true) => Response::empty(),
                 Ok(false) =>  Ok(Response::empty().unwrap().with_status(400)),
                 Err(e) => e.into()
@@ -102,9 +102,9 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             let id = get_id!(ctx);
             let mut headers = Headers::new();
             headers.append(CacheControl::name().as_ref(), "no-cache")?;
-            match status(id, DBClient{ctx}).await {
+            match status(id, &CFDBClient{ctx}).await {
                 Ok(Some(VPProgress::Started{..})) => Ok(Response::empty().unwrap().with_status(202)),
-                Ok(Some(VPProgress::Done)) => Response::empty(), // Response::from_json(&vp),
+                Ok(Some(VPProgress::Done(vc))) => Response::from_json(&vc), // Response::from_json(&vp),
                 Ok(None) => Ok(Response::empty().unwrap().with_status(204)),
                 Err(e) => e.into(),
             }.and_then(|r| r.with_cors(&get_cors()))
@@ -114,6 +114,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
         })
         .get("/.well-known/did.json", |_req, _ctx| {
             // TODO MSFT needs `#controller` for the vm ID but ssi gives a `INVALID_DID` when resolving it for signing as JWT
+            // MSFT doesn't support serviceEndpoint with `origins`
             Ok(Response::from_json(&json!({
               "@context": "https://w3id.org/did/v1",
               "id": handlers::DID_WEB,
@@ -141,9 +142,9 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
         .get_async(
             "/.well-known/did-configuration.json",
             |_req, _ctx| async move {
-                // TODO Have to generate the VC in the test for now because a worker cannot resolve to itself (in the same zone)
-                // MSFT doesn't support LD format, bloody hell, and they detect the type from the context URI
-                // MSFT uses a well out of date context
+                // TODO Have to generate the VC in the test `sign_linked_domain` for now because a worker cannot resolve to itself (in the same zone)
+                // MSFT doesn't support LD format, and they detect the type from the context URI
+                // MSFT uses an out of date context
                 let vc = json!({
                     "@context": "https://identity.foundation/.well-known/contexts/did-configuration-v0.0.jsonld",
                     "linked_dids": [

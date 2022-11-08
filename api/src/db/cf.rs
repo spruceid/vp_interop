@@ -1,23 +1,19 @@
 use anyhow::{anyhow, Result};
-use serde::{Deserialize, Serialize};
+use async_trait::async_trait;
 use uuid::Uuid;
 use worker::RouteContext;
 
-const KV_NAMESPACE: &str = "JWT_VC_INTEROP";
-const TTL: u64 = 300; // 5min
+use super::{DBClient, VPProgress, KV_NAMESPACE, TTL};
 
-#[derive(Serialize, Deserialize)]
-pub enum VPProgress {
-    Started { nonce: String },
-    Done,
-}
-
-pub struct DBClient {
+pub struct CFDBClient {
     pub ctx: RouteContext<()>,
 }
 
-impl DBClient {
-    pub async fn get_vp(&self, id: Uuid) -> Result<Option<VPProgress>> {
+// #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+// #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[async_trait(?Send)]
+impl DBClient for CFDBClient {
+    async fn get_vp(&self, id: Uuid) -> Result<Option<VPProgress>> {
         self.ctx
             .kv(KV_NAMESPACE)
             .map_err(|e| anyhow!("Failed to get KV store: {}", e))?
@@ -27,7 +23,7 @@ impl DBClient {
             .map_err(|e| anyhow!("Failed to get KV: {}", e))
     }
 
-    pub async fn put_vp(&self, id: Uuid, info: VPProgress) -> Result<()> {
+    async fn put_vp(&mut self, id: Uuid, info: VPProgress) -> Result<()> {
         self.ctx
             .kv(KV_NAMESPACE)
             .map_err(|e| anyhow!("Failed to get KV store: {}", e))?
