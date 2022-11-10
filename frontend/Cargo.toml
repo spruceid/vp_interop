@@ -19,6 +19,6 @@ serde_json = "1.0.87"
 url = "2.3.1"
 uuid = { version = "1.2.1", features = ["v4", "wasm-bindgen"] }
 wasm-bindgen-futures = "0.4.33"
-web-sys = { version = "0.3.60", features = ["Window", "Navigator"] }
+web-sys = { version = "0.3.60", features = ["Window", "Navigator", "Clipboard"] }
 yew = "0.19"
 yew-router = "0.16.0"

@@ -4,7 +4,7 @@ use qrcode::QrCode;
 use reqwasm::http::Request;
 use std::io::Cursor;
 use uuid::Uuid;
-use wasm_bindgen_futures::spawn_local;
+use wasm_bindgen_futures::{spawn_local, JsFuture};
 use yew::{prelude::*, Component, Context, Html};
 
 const REFRESH_INTERVAL: u32 = 3000; // milliseconds
@@ -26,6 +26,7 @@ enum VerifyPollState {
 pub struct VerifyPoll {
     state: VerifyPollState,
     uuid: Uuid,
+    is_mobile: bool,
 }
 
 pub enum Msg {
@@ -91,6 +92,7 @@ impl Component for VerifyPoll {
                 _clock_handle: create_clock_handle(uuid, ctx),
             },
             uuid,
+            is_mobile: is_mobile(),
         }
     }
 
@@ -123,21 +125,63 @@ impl Component for VerifyPoll {
         }
     }
 
-    fn view(&self, _ctx: &Context<Self>) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         match &self.state {
             VerifyPollState::PreScan { img, url, .. } => {
-                if is_mobile() {
+                let onclick = {
+                    let url = url.clone();
+                    ctx.link().batch_callback(move |_| {
+                        if let Some(clipboard) = window().navigator().clipboard() {
+                            let url = url.clone();
+                            spawn_local(async move {
+                                if let Err(e) =
+                                    JsFuture::from(clipboard.write_text(&url.to_owned())).await
+                                {
+                                    println!("Error: {:?}", e);
+                                }
+                            });
+                        }
+                        None
+                    })
+                };
+                if self.is_mobile {
                     html! {
-                        <a href={url.clone()}><button>{"Open authenticator app"}</button></a>
+                        <article>
+                            <header>{"Please click this button to share a credential"}</header>
+                            <a href={url.clone()}><button>{"Open authenticator app"}</button></a>
+                            <footer>
+                                <details>
+                                    <summary role="button" class="secondary outline">{"Are you on desktop?"}</summary>
+                                    <article>
+                                        <header>{"Please scan this QR code with your authenticator app to share a credential"}</header>
+                                        <img alt="QR Code" src={img.clone()} style="display: block; margin-left: auto; margin-right: auto;"/>
+                                        <a href="#" role="button" {onclick} style="float: right">{"Copy to clipboard"}</a>
+                                    </article>
+                                </details>
+                            </footer>
+                        </article>
                     }
                 } else {
                     html! {
-                        <img alt="QR Code" src={img.clone()} style="display: block; margin-left: auto; margin-right: auto;"/>
+                        <article>
+                            <header>{"Please scan this QR code with your authenticator app to share a credential"}</header>
+                            <img alt="QR Code" src={img.clone()} style="display: block; margin-left: auto; margin-right: auto;"/>
+                            <a href="#" role="button" {onclick} style="float: right">{"Copy to clipboard"}</a>
+                            <footer>
+                                <details>
+                                    <summary role="button" class="secondary outline">{"Are you on mobile?"}</summary>
+                                    <a href={url.clone()}><button>{"Open authenticator app"}</button></a>
+                                </details>
+                            </footer>
+                        </article>
                     }
                 }
             }
             VerifyPollState::PostScan { .. } => html! {
-                <article aria-busy="true">{"Waiting"}</article>
+            <article>
+                <header>{"Credential presentation flow initiated"}</header>
+                <p aria-busy="true"></p>
+            </article>
             },
             VerifyPollState::Done { vc } => html! {
                 <>
@@ -160,5 +204,9 @@ impl Component for VerifyPoll {
 
 fn is_mobile() -> bool {
     let navigator = window().navigator();
-    navigator.max_touch_points() > 0
+    if let Ok(user_agent) = navigator.user_agent() {
+        user_agent.to_ascii_lowercase().contains("mobi") && navigator.max_touch_points() > 0
+    } else {
+        false
+    }
 }
