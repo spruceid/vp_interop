@@ -1,3 +1,4 @@
+use dids::did_resolvers;
 use headers::{CacheControl, ContentType, Header};
 use serde_json::json;
 use ssi::jwk::JWK;
@@ -16,7 +17,11 @@ mod dids;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+const APP_BASE_URL_KEY: &str = "APP_BASE_URL";
+const BASE_URL_KEY: &str = "BASE_URL";
+const DID_KEY: &str = "DID";
 const API_PREFIX: &str = "/vp";
+const DID_JWK: &str = r#"{"kty":"EC","crv":"secp256k1","x":"nrVtymZmqiSu9lU8DmVnB6W7XayJUj4uN7hC3uujZ9s","y":"XZA56MU96ne2c2K-ldbZxrAmLOsneJL1lE4PFnkyQnA","d":"mojL_WMJuMp1vmHNLUkc4es6IeAfcDB7qyZqTeKCEqE"}"#;
 
 #[derive(Debug, Error)]
 pub enum CustomError {
@@ -80,7 +85,16 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             let id = get_id!(ctx);
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/jwt")?;
-            match id_token(id, &mut CFDBClient {ctx}).await {
+            let did = ctx.var(DID_KEY)?.to_string();
+            let app_base_url = ctx.var(APP_BASE_URL_KEY)?.to_string().parse().unwrap();
+            let base_url = ctx.var(BASE_URL_KEY)?.to_string().parse().unwrap();
+            let mut jwk: JWK =
+                match serde_json::from_str(DID_JWK) {
+                    Ok(j) => j,
+                    Err(e) => return Response::error(&format!("Could not load JWK: {}", e), 500),
+                };
+            jwk.key_id = Some(format!("{}#controller", did));
+            match id_token(&app_base_url, &base_url, &jwk, did, id, &mut CFDBClient {ctx}).await {
                 Ok(jwt) => Ok(Response::from_bytes(jwt.as_bytes().to_vec())?.with_headers(headers)),
                 Err(e) => e.into(),
             }
@@ -92,7 +106,8 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 Ok(p) => p,
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
-            match response(id, params, &mut CFDBClient {ctx}).await {
+            let methods = did_resolvers();
+            match response(&methods, id, params, &mut CFDBClient {ctx}).await {
                 Ok(true) => Response::empty(),
                 Ok(false) =>  Ok(Response::empty().unwrap().with_status(400)),
                 Err(e) => e.into()
@@ -104,7 +119,8 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             headers.append(CacheControl::name().as_ref(), "no-cache")?;
             match status(id, &CFDBClient{ctx}).await {
                 Ok(Some(VPProgress::Started{..})) => Ok(Response::empty().unwrap().with_status(202)),
-                Ok(Some(VPProgress::Done(vc))) => Response::from_json(&vc), // Response::from_json(&vp),
+                Ok(Some(VPProgress::Failed(errors))) => Ok(Response::from_json(&errors).unwrap().with_status(417)),
+                Ok(Some(VPProgress::Done(vc))) => Response::from_json(&vc),
                 Ok(None) => Ok(Response::empty().unwrap().with_status(204)),
                 Err(e) => e.into(),
             }.and_then(|r| r.with_cors(&get_cors()))
@@ -112,28 +128,30 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
         .options(&status_path, |_req, _ctx| {
             Response::empty()?.with_cors(&get_cors())
         })
-        .get("/.well-known/did.json", |_req, _ctx| {
+        .get("/.well-known/did.json", |_req, ctx| {
+            let base_url = ctx.var(BASE_URL_KEY)?.to_string();
+            let did = ctx.var(DID_KEY)?.to_string();
             // TODO MSFT needs `#controller` for the vm ID but ssi gives a `INVALID_DID` when resolving it for signing as JWT
             // MSFT doesn't support serviceEndpoint with `origins`
             Ok(Response::from_json(&json!({
               "@context": "https://w3id.org/did/v1",
-              "id": handlers::DID_WEB,
+              "id": did,
               "verificationMethod": [{
                    // "id": "did:web:api.vp.interop.spruceid.xyz#controller",
                    "id": "#controller",
                    "type": "EcdsaSecp256k1RecoveryMethod2020",
-                   "controller": handlers::DID_WEB,
-                   "publicKeyJwk": serde_json::from_str::<JWK>(handlers::DID_JWK)
+                   "controller": did,
+                   "publicKeyJwk": serde_json::from_str::<JWK>(DID_JWK)
                                 .unwrap()
                                 .to_public()
               }],
-              "authentication": [format!("{}#controller", handlers::DID_WEB)],
-              "assertionMethod": [format!("{}#controller", handlers::DID_WEB)],
+              "authentication": [format!("{}#controller", did)],
+              "assertionMethod": [format!("{}#controller", did)],
               "service": [{
                   "id": "#LinkedDomains", // format!("{}#self", DID_WEB),
                   "type": "LinkedDomains",
                   "serviceEndpoint": {
-                      "origins": [handlers::BASE_URL]
+                      "origins": [base_url]
                   },
               }]
             }))

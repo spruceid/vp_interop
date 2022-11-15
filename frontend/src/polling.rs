@@ -21,6 +21,9 @@ enum VerifyPollState {
     Done {
         vc: serde_json::Value,
     },
+    Failed {
+        errors: serde_json::Value,
+    },
 }
 
 pub struct VerifyPoll {
@@ -37,6 +40,7 @@ pub enum MsgStatus {
     S202,
     S204,
     S200(serde_json::Value),
+    S417(serde_json::Value),
 }
 
 async fn fetch_status(id: Uuid) -> Msg {
@@ -52,6 +56,7 @@ async fn fetch_status(id: Uuid) -> Msg {
         202 => MsgStatus::S202,
         204 => MsgStatus::S204,
         200 => MsgStatus::S200(resp.json().await.unwrap()),
+        417 => MsgStatus::S417(resp.json().await.unwrap()),
         _ => panic!(),
     };
     Msg::Tick { status }
@@ -116,6 +121,13 @@ impl Component for VerifyPoll {
                     MsgStatus::S200(vc) => match self.state {
                         VerifyPollState::PreScan { .. } | VerifyPollState::PostScan { .. } => {
                             self.state = VerifyPollState::Done { vc };
+                            true
+                        }
+                        _ => panic!(),
+                    },
+                    MsgStatus::S417(errors) => match self.state {
+                        VerifyPollState::PreScan { .. } | VerifyPollState::PostScan { .. } => {
+                            self.state = VerifyPollState::Failed { errors };
                             true
                         }
                         _ => panic!(),
@@ -191,6 +203,21 @@ impl Component for VerifyPoll {
                               {"✅ Your Verifiable Credential"}
                         </header>
                         <pre><code>{serde_json::to_string_pretty(vc).unwrap()}</code></pre>
+                        <footer style="text-align: right">
+                          // <a href="#cancel" role="button" class="secondary">Cancel</a>
+                          <a href="/" role="button">{"Back Home"}</a>
+                        </footer>
+                    </article>
+                </>
+            },
+            VerifyPollState::Failed { errors } => html! {
+                <>
+                    <article>
+                        <header>
+                              <a href="#close" aria-label="Close" class="close"></a>
+                              {"❌ Presentaiton and/or Credential failed to verify"}
+                        </header>
+                        <pre><code>{serde_json::to_string_pretty(errors).unwrap()}</code></pre>
                         <footer style="text-align: right">
                           // <a href="#cancel" role="button" class="secondary">Cancel</a>
                           <a href="/" role="button">{"Back Home"}</a>

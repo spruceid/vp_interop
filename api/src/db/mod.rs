@@ -1,7 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use ssi::vc::CredentialOrJWT;
 use uuid::Uuid;
 
 // #[cfg(target_arch = "wasm32")]
@@ -10,9 +9,10 @@ pub mod cf;
 const KV_NAMESPACE: &str = "JWT_VC_INTEROP";
 const TTL: u64 = 300; // 5min
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum VPProgress {
     Started { nonce: String },
+    Failed(serde_json::Value),
     Done(serde_json::Value),
 }
 
