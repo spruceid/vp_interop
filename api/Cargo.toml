@@ -12,6 +12,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 oidc4vp = { path = "../../oidc4vp-rs/" }
+siop = { path = "../../siop-rs/" }
+# oidc4vp = { git = "https://github.com/spruceid/oidc4vp-rs" }
+# siop = { git = "https://github.com/spruceid/siop-rs" }
 worker = "0.0.11"
 wee_alloc = "0.4"
 serde_json = "1"
@@ -24,6 +27,9 @@ serde_with = "2.0.1"
 ssi = { path = "../../ssi", default-features = false, features = ["w3c"] }
 did-ion = { path = "../../ssi/did-ion" }
 did-web = { path = "../../ssi/did-web", default-features = false }
+# ssi = { git = "https://github.com/spruceid/ssi", branch = "feat/enum-everything", default-features = false, features = ["w3c"] }
+# did-ion = { git = "https://github.com/spruceid/ssi", branch = "feat/enum-everything" }
+# did-web = { git = "https://github.com/spruceid/ssi", branch = "feat/enum-everything", default-features = false }
 
 rand = "0.8.4"
 chrono = { version = "0.4.19", features = ["wasmbind"] }

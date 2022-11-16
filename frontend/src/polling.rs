@@ -2,6 +2,7 @@ use gloo::{timers::callback::Interval, utils::window};
 use image::{DynamicImage, ImageOutputFormat, Luma};
 use qrcode::QrCode;
 use reqwasm::http::Request;
+use serde::Serialize;
 use std::io::Cursor;
 use uuid::Uuid;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
@@ -14,6 +15,7 @@ enum VerifyPollState {
         img: String,
         url: String,
         _clock_handle: Interval,
+        check_params: CheckParams,
     },
     PostScan {
         _clock_handle: Interval,
@@ -34,6 +36,7 @@ pub struct VerifyPoll {
 
 pub enum Msg {
     Tick { status: MsgStatus },
+    Click(Click),
 }
 
 pub enum MsgStatus {
@@ -41,6 +44,10 @@ pub enum MsgStatus {
     S204,
     S200(serde_json::Value),
     S417(serde_json::Value),
+}
+
+pub enum Click {
+    RevocationCheck,
 }
 
 async fn fetch_status(id: Uuid) -> Msg {
@@ -76,24 +83,14 @@ impl Component for VerifyPoll {
 
     fn create(ctx: &Context<Self>) -> Self {
         let uuid = Uuid::new_v4();
-        let url = format!(
-            "openid-vc://?request_uri={}",
-            crate::API_BASE
-                .join(&format!("vp/{}/request", uuid))
-                .unwrap()
-        );
-        let code = QrCode::new(url.clone()).unwrap();
-        let image = DynamicImage::ImageLuma8(code.render::<Luma<u8>>().build());
-        let mut bytes: Vec<u8> = Vec::new();
-        image
-            .write_to(&mut Cursor::new(&mut bytes), ImageOutputFormat::Png)
-            .unwrap();
-        let img = format!("data:image/svg;base64,{}", base64::encode(bytes));
+        let check_params = CheckParams::default();
+        let (url, img) = gen_link_img(&uuid, &check_params);
 
         Self {
             state: VerifyPollState::PreScan {
                 img,
                 url,
+                check_params,
                 _clock_handle: create_clock_handle(uuid, ctx),
             },
             uuid,
@@ -134,12 +131,32 @@ impl Component for VerifyPoll {
                     },
                 }
             }
+            Msg::Click(Click::RevocationCheck) => match self.state {
+                VerifyPollState::PreScan {
+                    ref mut img,
+                    ref mut url,
+                    ref mut check_params,
+                    ..
+                } => {
+                    check_params.revocation_check = !check_params.revocation_check;
+                    (*url, *img) = gen_link_img(&self.uuid, &check_params);
+                    // url = url;
+                    // img = img;
+                    true
+                }
+                _ => panic!(),
+            },
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         match &self.state {
-            VerifyPollState::PreScan { img, url, .. } => {
+            VerifyPollState::PreScan {
+                img,
+                url,
+                check_params,
+                ..
+            } => {
                 let onclick = {
                     let url = url.clone();
                     ctx.link().batch_callback(move |_| {
@@ -156,18 +173,38 @@ impl Component for VerifyPoll {
                         None
                     })
                 };
+                let onclick_revocation =
+                    ctx.link().callback(|_| Msg::Click(Click::RevocationCheck));
+                let params = html! {
+                    <>
+                        <input type="checkbox" id="revocation" name="revocation" value="revocation" checked={check_params.revocation_check} onclick={onclick_revocation}/>
+                        <label for="revocation">{"Check revocation status"}</label>
+                    </>
+                };
+                let desktop = html! {
+                    <>
+                        <header>{"Please scan this QR code with your authenticator app to share a credential"}</header>
+                        <img alt="QR Code" src={img.clone()} style="display: block; margin-left: auto; margin-right: auto;"/>
+                        {params.clone()}
+                        <a href="#" role="button" {onclick} style="float: right">{"Copy to clipboard"}</a>
+                    </>
+                };
+                let mobile = html! {
+                    <>
+                        <header>{"Please click this button to share a credential"}</header>
+                        {params.clone()}
+                        <a href={url.clone()}><button>{"Open authenticator app"}</button></a>
+                    </>
+                };
                 if self.is_mobile {
                     html! {
                         <article>
-                            <header>{"Please click this button to share a credential"}</header>
-                            <a href={url.clone()}><button>{"Open authenticator app"}</button></a>
+                            {mobile.clone()}
                             <footer>
                                 <details>
                                     <summary role="button" class="secondary outline">{"Are you on desktop?"}</summary>
                                     <article>
-                                        <header>{"Please scan this QR code with your authenticator app to share a credential"}</header>
-                                        <img alt="QR Code" src={img.clone()} style="display: block; margin-left: auto; margin-right: auto;"/>
-                                        <a href="#" role="button" {onclick} style="float: right">{"Copy to clipboard"}</a>
+                                        {desktop.clone()}
                                     </article>
                                 </details>
                             </footer>
@@ -176,13 +213,11 @@ impl Component for VerifyPoll {
                 } else {
                     html! {
                         <article>
-                            <header>{"Please scan this QR code with your authenticator app to share a credential"}</header>
-                            <img alt="QR Code" src={img.clone()} style="display: block; margin-left: auto; margin-right: auto;"/>
-                            <a href="#" role="button" {onclick} style="float: right">{"Copy to clipboard"}</a>
+                            {desktop.clone()}
                             <footer>
                                 <details>
                                     <summary role="button" class="secondary outline">{"Are you on mobile?"}</summary>
-                                    <a href={url.clone()}><button>{"Open authenticator app"}</button></a>
+                                    {mobile.clone()}
                                 </details>
                             </footer>
                         </article>
@@ -215,7 +250,7 @@ impl Component for VerifyPoll {
                     <article>
                         <header>
                               <a href="#close" aria-label="Close" class="close"></a>
-                              {"❌ Presentaiton and/or Credential failed to verify"}
+                              {"❌ Presentation verification failed"}
                         </header>
                         <pre><code>{serde_json::to_string_pretty(errors).unwrap()}</code></pre>
                         <footer style="text-align: right">
@@ -236,4 +271,25 @@ fn is_mobile() -> bool {
     } else {
         false
     }
+}
+
+#[derive(Default, Clone, Serialize)]
+struct CheckParams {
+    revocation_check: bool,
+}
+
+fn gen_link_img(uuid: &Uuid, params: &CheckParams) -> (String, String) {
+    let mut request_uri = crate::API_BASE
+        .join(&format!("vp/{}/request", uuid))
+        .unwrap();
+    request_uri.set_query(Some(&serde_urlencoded::to_string(params).unwrap()));
+    let url = format!("openid-vc://?request_uri={request_uri}",);
+    let code = QrCode::new(url.clone()).unwrap();
+    let image = DynamicImage::ImageLuma8(code.render::<Luma<u8>>().build());
+    let mut bytes: Vec<u8> = Vec::new();
+    image
+        .write_to(&mut Cursor::new(&mut bytes), ImageOutputFormat::Png)
+        .unwrap();
+    let img = format!("data:image/svg;base64,{}", base64::encode(bytes));
+    (url, img)
 }

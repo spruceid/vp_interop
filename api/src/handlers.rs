@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Context};
-use oidc4vp::{
-    presentation_exchange::{ClaimFormat, InputDescriptor, PresentationDefinition, VpToken},
-    siop::{IdTokenSIOP, RequestParameters},
+use oidc4vp::presentation_exchange::{
+    ClaimFormat, InputDescriptor, PresentationDefinition, VpToken,
 };
 use openidconnect::{
     // core::{
@@ -23,6 +22,7 @@ use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_with::EnumMap;
+use siop::{IdTokenSIOP, RequestParameters};
 use ssi::{
     did::VerificationRelationship,
     did_resolve::{get_verification_methods, DIDResolver},
@@ -115,25 +115,30 @@ struct RequestClaims {
     vp_token: VpToken,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct DemoParams {
+    revocation_check: bool,
+}
+
 pub async fn id_token<'a>(
     app_url: &Url,
     api_url: &Url,
     jwk: &JWK,
     did: String,
     id: Uuid,
+    params: &DemoParams,
     db: &mut dyn DBClient,
 ) -> Result<String, CustomError> {
     // let res = RegistrationMetadata::new();
     let nonce = gen_nonce();
-    let request_parameters = RequestParameters::new(
-        did,
-        RedirectUrl::from_url(
-            api_url
-                .join(&format!("{}/{}/response", API_PREFIX, id))
-                .context("Could not join URL")?,
-        ),
-        nonce.clone(),
-    );
+    let mut redirect_url = api_url
+        .join(&format!("{}/{}/response", API_PREFIX, id))
+        .context("Could not join URL")?;
+    redirect_url.set_query(Some(
+        &serde_urlencoded::to_string(params).context("Could not serialise query")?,
+    ));
+    let request_parameters =
+        RequestParameters::new(did, RedirectUrl::from_url(redirect_url), nonce.clone());
     let payload = Request {
         request_parameters,
         registration: RegistrationMetadataAdditional {
@@ -221,12 +226,18 @@ pub async fn response<'a>(
     did_resolver: &'a dyn DIDResolver,
     id: Uuid,
     params: ResponseRequestJWT,
+    demo_params: &DemoParams,
     db: &mut dyn DBClient,
 ) -> Result<bool, CustomError> {
+    let checks = if demo_params.revocation_check {
+        Some(vec![Check::Status])
+    } else {
+        None
+    };
     let options = LinkedDataProofOptions {
         proof_purpose: Some(ProofPurpose::Authentication),
         domain: Some("did:web:api.vp.interop.spruceid.xyz".to_string()),
-        checks: Some(vec![Check::Status]),
+        checks,
         ..Default::default()
     };
     let (vp, res) = Presentation::decode_verify_jwt(
@@ -434,6 +445,7 @@ pub(crate) mod tests {
             jwk,
             DIDKey.generate(&Source::Key(jwk)).unwrap(),
             Uuid::new_v4(),
+            &DemoParams::default(),
             &mut MemoryDBClient::new(),
         )
         .await
@@ -520,6 +532,7 @@ pub(crate) mod tests {
             &methods,
             uuid!("a2a526f4-447b-495a-99e3-d0d7dfd1e64c"),
             serde_urlencoded::from_str(body).unwrap(),
+            &DemoParams::default(),
             &mut db
         )
         .await
@@ -536,6 +549,7 @@ pub(crate) mod tests {
             &methods,
             uuid!("a2a526f4-447b-495a-99e3-d0d7dfd1e64c"),
             serde_urlencoded::from_str(body).unwrap(),
+            &DemoParams::default(),
             &mut db
         )
         .await
@@ -554,9 +568,15 @@ pub(crate) mod tests {
            id_token : "eyJraWQiOiJkaWQ6aW9uOkVpQTZkWlV2SFlhWWtFWENMV2Y4aDdIR0d0T3M0OEsxV18xMGZtS2x2cXNSbkE6ZXlKa1pXeDBZU0k2ZXlKd1lYUmphR1Z6SWpwYmV5SmhZM1JwYjI0aU9pSnlaWEJzWVdObElpd2laRzlqZFcxbGJuUWlPbnNpY0hWaWJHbGpTMlY1Y3lJNlczc2lhV1FpT2lKclpYa3RNU0lzSW5CMVlteHBZMHRsZVVwM2F5STZleUpqY25ZaU9pSkZaREkxTlRFNUlpd2lhM1I1SWpvaVQwdFFJaXdpZUNJNklsRTNlRlJJZURreFpXMW1iMjR5VW1NdFJtbGFhWEZqV0RocGNEazVWamhrYzBwck1YaE5Na04wYUVraUxDSnJhV1FpT2lKclpYa3RNU0o5TENKd2RYSndiM05sY3lJNld5SmhkWFJvWlc1MGFXTmhkR2x2YmlKZExDSjBlWEJsSWpvaVNuTnZibGRsWWt0bGVUSXdNakFpZlYxOWZWMHNJblZ3WkdGMFpVTnZiVzFwZEcxbGJuUWlPaUpGYVVJeWVVRjRabkJFYm5wM1ZUQmlRMXBTU1RKbE9XdFBSMUpwZEVSNmFHTlhhRVpvUnpkSFNqZHpRVTVuSW4wc0luTjFabVpwZUVSaGRHRWlPbnNpWkdWc2RHRklZWE5vSWpvaVJXbEVWa0ptVWxBMVUyWm5ZV3RrWVRsUlltUm1PR0k0V1RWUU9ETjNOR2swUnkxblEyZHdPUzB3ZFRoRFp5SXNJbkpsWTI5MlpYSjVRMjl0YldsMGJXVnVkQ0k2SWtWcFFrOVFiVVF4TlVscE5HeGxOVGRYU0d0UVZ6ZG5SM05sZG5CQ1pXbGFkVmhUTkZKdk5WVnNkRGhLVTNjaWZYMCNrZXktMSIsImFsZyI6IkVkRFNBIn0.eyJzdWIiOiJkaWQ6aW9uOkVpQTZkWlV2SFlhWWtFWENMV2Y4aDdIR0d0T3M0OEsxV18xMGZtS2x2cXNSbkE6ZXlKa1pXeDBZU0k2ZXlKd1lYUmphR1Z6SWpwYmV5SmhZM1JwYjI0aU9pSnlaWEJzWVdObElpd2laRzlqZFcxbGJuUWlPbnNpY0hWaWJHbGpTMlY1Y3lJNlczc2lhV1FpT2lKclpYa3RNU0lzSW5CMVlteHBZMHRsZVVwM2F5STZleUpqY25ZaU9pSkZaREkxTlRFNUlpd2lhM1I1SWpvaVQwdFFJaXdpZUNJNklsRTNlRlJJZURreFpXMW1iMjR5VW1NdFJtbGFhWEZqV0RocGNEazVWamhrYzBwck1YaE5Na04wYUVraUxDSnJhV1FpT2lKclpYa3RNU0o5TENKd2RYSndiM05sY3lJNld5SmhkWFJvWlc1MGFXTmhkR2x2YmlKZExDSjBlWEJsSWpvaVNuTnZibGRsWWt0bGVUSXdNakFpZlYxOWZWMHNJblZ3WkdGMFpVTnZiVzFwZEcxbGJuUWlPaUpGYVVJeWVVRjRabkJFYm5wM1ZUQmlRMXBTU1RKbE9XdFBSMUpwZEVSNmFHTlhhRVpvUnpkSFNqZHpRVTVuSW4wc0luTjFabVpwZUVSaGRHRWlPbnNpWkdWc2RHRklZWE5vSWpvaVJXbEVWa0ptVWxBMVUyWm5ZV3RrWVRsUlltUm1PR0k0V1RWUU9ETjNOR2swUnkxblEyZHdPUzB3ZFRoRFp5SXNJbkpsWTI5MlpYSjVRMjl0YldsMGJXVnVkQ0k2SWtWcFFrOVFiVVF4TlVscE5HeGxOVGRYU0d0UVZ6ZG5SM05sZG5CQ1pXbGFkVmhUTkZKdk5WVnNkRGhLVTNjaWZYMCIsImF1ZCI6ImRpZDppb246RWlEWFJFNkdQcDcxNkdadng0MDRMRnlnUW9Xc2hpSXFoT0ZORkJacW9adEQzZzpleUprWld4MFlTSTZleUp3WVhSamFHVnpJanBiZXlKaFkzUnBiMjRpT2lKeVpYQnNZV05sSWl3aVpHOWpkVzFsYm5RaU9uc2ljSFZpYkdsalMyVjVjeUk2VzNzaWFXUWlPaUpyWlhrdE1TSXNJbkIxWW14cFkwdGxlVXAzYXlJNmV5SmpjbllpT2lKRlpESTFOVEU1SWl3aWEzUjVJam9pVDB0UUlpd2llQ0k2SWtGek1YTlhkM1JzVEhkUlVUZ3dNRWxMZEMwMGFFWlRNWFJLY1Y5amVEQmtTR0ZtT0RKVVRUSk1XVVVpTENKcmFXUWlPaUpyWlhrdE1TSjlMQ0p3ZFhKd2IzTmxjeUk2V3lKaGRYUm9aVzUwYVdOaGRHbHZiaUpkTENKMGVYQmxJam9pU25OdmJsZGxZa3RsZVRJd01qQWlmVjE5ZlYwc0luVndaR0YwWlVOdmJXMXBkRzFsYm5RaU9pSkZhVUpSV0hCcVNrOXZRMGRwVkZwNk5WZDNaa0UzWTNCcU56RmFlRzlaVVRRMGNqSTFTMU5HU0VGdFpIRlJJbjBzSW5OMVptWnBlRVJoZEdFaU9uc2laR1ZzZEdGSVlYTm9Jam9pUldsRGNFdDZjRWRyV2xOYWRuUlZNRzFFVEUxUVpVWlNOSEo0U3pscmFsSlZhV0ZMZW5sdVozSlpkMnhWWnlJc0luSmxZMjkyWlhKNVEyOXRiV2wwYldWdWRDSTZJa1ZwUTNOZlFqVkhkRWN6ZW1SNFZtOXdOVGR4V2xSamIzQXpNVlJEUkRGdVZGVlhXbXhmVkZKNVZYbE1ObmNpZlgwIiwiaXNzIjoiaHR0cHM6XC9cL3NlbGYtaXNzdWVkLm1lXC92Mlwvb3BlbmlkLXZjIiwiZXhwIjoxNjY2MjE1MDc4LCJpYXQiOjE2NjYyMDA2NzgsIm5vbmNlIjoiYmNjZWIzNDctMTM3NC00OWI4LWFjZTAtYjg2ODE2MmMxMjJkIiwianRpIjoiNTFlNzQ4YmMtMzI5Yy00YmRhLTkxNjUtYzIwZjY2YmRjMmE5IiwiX3ZwX3Rva2VuIjp7InByZXNlbnRhdGlvbl9zdWJtaXNzaW9uIjp7ImlkIjoiMWY4NzVjNmQtZjk3Yy00NGJlLThhOGYtMmNhMmU1OWNjNDg1IiwiZGVmaW5pdGlvbl9pZCI6IjgwMDZiNWZiLTZlM2ItNDJkMS1hMmJlLTU1ZWQyYTA4MDczZCIsImRlc2NyaXB0b3JfbWFwIjpbeyJpZCI6IlZlcmlmaWVkRW1wbG95ZWVWQyIsImZvcm1hdCI6Imp3dF92cCIsInBhdGgiOiIkIiwicGF0aF9uZXN0ZWQiOnsiaWQiOiJWZXJpZmllZEVtcGxveWVlVkMiLCJmb3JtYXQiOiJqd3RfdmMiLCJwYXRoIjoiJC52ZXJpZmlhYmxlQ3JlZGVudGlhbFswXSJ9fV19fX0._OhVfVklwXPBDFJ9d2f9BBMPzpFGfjJ6zEgMBehgWkyBn_PUyvb_GzQHnrKfAsi2TC0AM-ueHWcVgtqeQxI0Ag".to_string(),
     };
         let uuid = uuid!("8006b5fb-6e3b-42d1-a2be-55ed2a08073d");
-        assert!(response(&methods, uuid, response_req, &mut db)
-            .await
-            .unwrap());
+        assert!(response(
+            &methods,
+            uuid,
+            response_req,
+            &DemoParams::default(),
+            &mut db
+        )
+        .await
+        .unwrap());
         let res = db.get_vp(uuid).await.unwrap();
         let expected = json!({
           "sub" : "did:ion:EiA6dZUvHYaYkEXCLWf8h7HGGtOs48K1W_10fmKlvqsRnA:eyJkZWx0YSI6eyJwYXRjaGVzIjpbeyJhY3Rpb24iOiJyZXBsYWNlIiwiZG9jdW1lbnQiOnsicHVibGljS2V5cyI6W3siaWQiOiJrZXktMSIsInB1YmxpY0tleUp3ayI6eyJjcnYiOiJFZDI1NTE5Iiwia3R5IjoiT0tQIiwieCI6IlE3eFRIeDkxZW1mb24yUmMtRmlaaXFjWDhpcDk5Vjhkc0prMXhNMkN0aEkiLCJraWQiOiJrZXktMSJ9LCJwdXJwb3NlcyI6WyJhdXRoZW50aWNhdGlvbiJdLCJ0eXBlIjoiSnNvbldlYktleTIwMjAifV19fV0sInVwZGF0ZUNvbW1pdG1lbnQiOiJFaUIyeUF4ZnBEbnp3VTBiQ1pSSTJlOWtPR1JpdER6aGNXaEZoRzdHSjdzQU5nIn0sInN1ZmZpeERhdGEiOnsiZGVsdGFIYXNoIjoiRWlEVkJmUlA1U2ZnYWtkYTlRYmRmOGI4WTVQODN3NGk0Ry1nQ2dwOS0wdThDZyIsInJlY292ZXJ5Q29tbWl0bWVudCI6IkVpQk9QbUQxNUlpNGxlNTdXSGtQVzdnR3NldnBCZWladVhTNFJvNVVsdDhKU3cifX0",
@@ -606,6 +626,7 @@ pub(crate) mod tests {
             &jwk,
             did.to_string(),
             uuid,
+            &DemoParams::default(),
             &mut db,
         )
         .await
@@ -666,7 +687,10 @@ pub(crate) mod tests {
         res.request_parameters.nonce = expected.request_parameters.nonce.clone();
         assert_eq!(
             res.request_parameters.redirect_uri.to_string(),
-            format!("https://api.vp.interop.spruceid.xyz/vp/{}/response", uuid)
+            format!(
+                "https://api.vp.interop.spruceid.xyz/vp/{}/response?revocation_check=false",
+                uuid
+            )
         );
         assert_eq!(
             res.registration.logo_uri.unwrap().to_string(),

@@ -81,7 +81,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
     let status_path = format!("{}/:id/status", API_PREFIX);
     let router = Router::new();
     router
-        .get_async(&format!("{}/:id/request", API_PREFIX), |mut _req, ctx| async move {
+        .get_async(&format!("{}/:id/request", API_PREFIX), |mut req, ctx| async move {
             let id = get_id!(ctx);
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/jwt")?;
@@ -94,7 +94,13 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                     Err(e) => return Response::error(&format!("Could not load JWK: {}", e), 500),
                 };
             jwk.key_id = Some(format!("{}#controller", did));
-            match id_token(&app_base_url, &base_url, &jwk, did, id, &mut CFDBClient {ctx}).await {
+            let url = req.url()?;
+            let query = url.query().unwrap_or_default();
+            let params = match serde_urlencoded::from_str(query) {
+                Ok(p) => p,
+                Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
+            };
+            match id_token(&app_base_url, &base_url, &jwk, did, id, &params, &mut CFDBClient {ctx}).await {
                 Ok(jwt) => Ok(Response::from_bytes(jwt.as_bytes().to_vec())?.with_headers(headers)),
                 Err(e) => e.into(),
             }
@@ -106,10 +112,15 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 Ok(p) => p,
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
+            let url = req.url()?;
+            let query = url.query().unwrap_or_default();
+            let demo_params = match serde_urlencoded::from_str(query) {
+                Ok(p) => p,
+                Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
+            };
             let methods = did_resolvers();
-            match response(&methods, id, params, &mut CFDBClient {ctx}).await {
-                Ok(true) => Response::empty(),
-                Ok(false) =>  Ok(Response::empty().unwrap().with_status(400)),
+            match response(&methods, id, params, &demo_params, &mut CFDBClient {ctx}).await {
+                Ok(_) => Response::empty(),
                 Err(e) => e.into()
             }
         })
