@@ -10,8 +10,13 @@ const KV_NAMESPACE: &str = "JWT_VC_INTEROP";
 const TTL: u64 = 300; // 5min
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct StartedInfo {
+    pub nonce: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum VPProgress {
-    Started { nonce: String },
+    Started(StartedInfo),
     Failed(serde_json::Value),
     Done(serde_json::Value),
 }

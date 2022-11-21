@@ -81,7 +81,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
     let status_path = format!("{}/:id/status", API_PREFIX);
     let router = Router::new();
     router
-        .get_async(&format!("{}/:id/request", API_PREFIX), |mut req, ctx| async move {
+        .get_async(&format!("{}/:id/request", API_PREFIX), |req, ctx| async move {
             let id = get_id!(ctx);
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/jwt")?;
@@ -112,6 +112,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 Ok(p) => p,
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
+            let did = ctx.var(DID_KEY)?.to_string();
             let url = req.url()?;
             let query = url.query().unwrap_or_default();
             let demo_params = match serde_urlencoded::from_str(query) {
@@ -119,7 +120,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
             let methods = did_resolvers();
-            match response(&methods, id, params, &demo_params, &mut CFDBClient {ctx}).await {
+            match response(&methods, did, id, params, &demo_params, &mut CFDBClient {ctx}).await {
                 Ok(_) => Response::empty(),
                 Err(e) => e.into()
             }
