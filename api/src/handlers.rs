@@ -474,17 +474,16 @@ pub(crate) mod tests {
         // panic!();
         // TODO "UnencodableOptionClaim("checks")'" with default options
         let options = LinkedDataProofOptions {
-            domain: Some(did_web.to_string()),
             checks: None,
             created: None,
             ..Default::default()
         };
-        let _ = vc
+        let jwt = vc
             .generate_jwt(Some(&jwk), &options, &DIDWeb)
             .await
             .unwrap();
-        // println!("{}", jwt);
-        // panic!();
+        println!("{}", jwt);
+        panic!();
     }
 
     #[tokio::test]
