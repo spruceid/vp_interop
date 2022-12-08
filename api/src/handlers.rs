@@ -1,9 +1,7 @@
 use std::error::Error;
 
 use anyhow::{anyhow, Context};
-use oidc4vp::presentation_exchange::{
-    ClaimFormat, InputDescriptor, PresentationDefinition, VpToken,
-};
+use oidc4vp::presentation_exchange::{InputDescriptor, PresentationDefinition, VpToken};
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -18,7 +16,7 @@ use ssi::{
     jsonld::ContextLoader,
     jwk::{Algorithm, JWK},
     jwt::{decode_unverified, encode_sign},
-    ldp::Check,
+    ldp::{Check, ProofSuiteType},
     vc::{CredentialOrJWT, LinkedDataProofOptions, Presentation, ProofPurpose},
 };
 use time::{ext::NumericalDuration, OffsetDateTime};
@@ -37,6 +35,17 @@ fn gen_nonce() -> Nonce {
         .map(char::from)
         .collect();
     Nonce::new(nonce)
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ClaimFormat {
+    // Jwt,
+    JwtVp { alg: Vec<Algorithm> },
+    JwtVc { alg: Vec<Algorithm> },
+    // Ldp,
+    LdpVp { proof_type: Vec<ProofSuiteType> },
+    LdpVc { proof_type: Vec<ProofSuiteType> },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
