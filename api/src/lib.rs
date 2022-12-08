@@ -103,7 +103,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             match id_token(&app_base_url, &base_url, &jwk, did, id, &params, &mut CFDBClient {ctx}).await {
                 Ok(jwt) => Ok(Response::from_bytes(jwt.as_bytes().to_vec())?.with_headers(headers)),
                 Err(e) => e.into(),
-            }
+            }.and_then(|r| r.with_cors(&get_cors()))
         })
         .post_async(&format!("{}/:id/response", API_PREFIX), |mut req, ctx| async move{
             let id = get_id!(ctx);
@@ -123,7 +123,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             match response(&methods, did, id, params, &demo_params, &mut CFDBClient {ctx}).await {
                 Ok(_) => Response::empty(),
                 Err(e) => e.into()
-            }
+            }.and_then(|r| r.with_cors(&get_cors()))
         })
         .get_async(&status_path, |mut _req, ctx| async move {
             let id = get_id!(ctx);
@@ -167,7 +167,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                   },
               }]
             }))
-            .unwrap())
+            .unwrap()).and_then(|r| r.with_cors(&get_cors()))
         })
         .get_async(
             "/.well-known/did-configuration.json",
@@ -181,7 +181,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                         "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS52cC5pbnRlcm9wLnNwcnVjZWlkLnh5eiNjb250cm9sbGVyIn0.eyJleHAiOjE5ODIxMzQ5NzEuNDc3MjYzLCJpc3MiOiJkaWQ6d2ViOmFwaS52cC5pbnRlcm9wLnNwcnVjZWlkLnh5eiIsIm5iZiI6MTY2NzYzODk3MS40NzY4NzgsInN1YiI6ImRpZDp3ZWI6YXBpLnZwLmludGVyb3Auc3BydWNlaWQueHl6IiwiYXVkIjoiZGlkOndlYjphcGkudnAuaW50ZXJvcC5zcHJ1Y2VpZC54eXoiLCJ2YyI6eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvMjAxOC9jcmVkZW50aWFscy92MSIsImh0dHBzOi8vaWRlbnRpdHkuZm91bmRhdGlvbi8ud2VsbC1rbm93bi9jb250ZXh0cy9kaWQtY29uZmlndXJhdGlvbi12MC4wLmpzb25sZCJdLCJ0eXBlIjpbIlZlcmlmaWFibGVDcmVkZW50aWFsIiwiRG9tYWluTGlua2FnZUNyZWRlbnRpYWwiXSwiY3JlZGVudGlhbFN1YmplY3QiOnsiaWQiOiJkaWQ6d2ViOmFwaS52cC5pbnRlcm9wLnNwcnVjZWlkLnh5eiIsIm9yaWdpbiI6Imh0dHBzOi8vYXBpLnZwLmludGVyb3Auc3BydWNlaWQueHl6In0sImlzc3VlciI6ImRpZDp3ZWI6YXBpLnZwLmludGVyb3Auc3BydWNlaWQueHl6IiwiaXNzdWFuY2VEYXRlIjoiMjAyMi0xMS0wNVQwOTowMjo1MS40NzY4NzhaIiwiZXhwaXJhdGlvbkRhdGUiOiIyMDMyLTEwLTIzVDA5OjAyOjUxLjQ3NzI2M1oifX0.iUBJaS15q36qyrLMBCTr-HPoaB3QysGNhbYD6LcrcZA5_urIS1ca9pFFB2cdmG-URubi5Bm7v7GtOpJFW7vGaA"
                     ]
                 });
-                Ok(Response::from_json(&vc).unwrap())
+                Ok(Response::from_json(&vc).unwrap()).and_then(|r| r.with_cors(&get_cors()))
             },
         )
         .run(req, env)
