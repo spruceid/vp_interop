@@ -121,7 +121,7 @@ pub async fn id_token<'a>(
     let payload = Request {
         request_parameters,
         registration: RegistrationMetadataAdditional {
-            subject_syntax_types_supported: vec!["did:web".to_string(), "did:ion".to_string()],
+            subject_syntax_types_supported: vec!["did:web".to_string(), "did:ion".to_string(), "did:jwk".to_string()], // TODO use keys of DID_METHODS
             vp_formats: vec![
                 ClaimFormat::JwtVc {
                     alg: vec![Algorithm::EdDSA, Algorithm::ES256K],

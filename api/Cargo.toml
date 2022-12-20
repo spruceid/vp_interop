@@ -26,6 +26,7 @@ serde_with = "2.0.1"
 ssi = { path = "../../ssi", default-features = false, features = ["w3c"] }
 did-ion = { path = "../../ssi/did-ion" }
 did-web = { path = "../../ssi/did-web", default-features = false }
+did-jwk = { path = "../../ssi/did-jwk", default-features = false }
 # ssi = { git = "https://github.com/spruceid/ssi", branch = "feat/enum-everything", default-features = false, features = ["w3c"] }
 # did-ion = { git = "https://github.com/spruceid/ssi", branch = "feat/enum-everything" }
 # did-web = { git = "https://github.com/spruceid/ssi", branch = "feat/enum-everything", default-features = false }
