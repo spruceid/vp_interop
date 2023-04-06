@@ -19,4 +19,4 @@ APP_BASE_URL = "https://example.com"
 DID = "did:web:api.example.com"
 
 [build]
-command = "cargo install -q worker-build --version 0.0.8 && worker-build --release"
+command = "cargo install -q worker-build --version 0.0.9 && worker-build --release"
