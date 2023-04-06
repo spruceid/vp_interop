@@ -11,10 +11,8 @@ repository = "https://github.com/spruceid/vp_interop/"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-oidc4vp = { path = "../../oidc4vp-rs/" }
-siop = { path = "../../siop-rs/" }
-# oidc4vp = { git = "https://github.com/spruceid/oidc4vp-rs" }
-# siop = { git = "https://github.com/spruceid/siop-rs" }
+oidc4vp = { git = "https://github.com/spruceid/oidc4vp-rs", rev = "dd06e4e" }
+siop = { git = "https://github.com/spruceid/siop-rs", rev = "939156e" }
 worker = "0.0.12"
 wee_alloc = "0.4"
 serde_json = "1"
@@ -23,13 +21,10 @@ thiserror = "1.0.37"
 anyhow = "1.0.66"
 serde = { version = "1.0.147", features = ["derive"] }
 serde_with = "2.0.1"
-ssi = { path = "../../ssi", default-features = false, features = ["w3c"] }
-did-ion = { path = "../../ssi/did-ion" }
-did-web = { path = "../../ssi/did-web", default-features = false }
-did-jwk = { path = "../../ssi/did-jwk", default-features = false }
-# ssi = { git = "https://github.com/spruceid/ssi", branch = "feat/enum-everything", default-features = false, features = ["w3c"] }
-# did-ion = { git = "https://github.com/spruceid/ssi", branch = "feat/enum-everything" }
-# did-web = { git = "https://github.com/spruceid/ssi", branch = "feat/enum-everything", default-features = false }
+ssi = { version = "0.6.0", default-features = false, features = ["w3c"] }
+did-ion = "0.2.0"
+did-web = { version = "0.2.1", default-features = false }
+did-jwk = { version = "0.1.1", default-features = false }
 
 rand = "0.8.4"
 chrono = { version = "0.4.19", features = ["wasmbind"] }
@@ -42,4 +37,4 @@ async-trait = "0.1.58"
 serde_path_to_error = "0.1.8"
 pretty_assertions = "1.3.0"
 tokio = { version = "1.21.2", features = ["macros"] }
-did-key = { path = "../../ssi/did-key", package = "did-method-key" }
+did-method-key = "0.2.1"
