@@ -44,7 +44,7 @@ pub enum CustomError {
 impl From<CustomError> for Result<Response> {
     fn from(error: CustomError) -> Self {
         match error {
-            CustomError::BadRequest(_) => Response::error(&error.to_string(), 400),
+            CustomError::BadRequest(_) => Response::error(error.to_string(), 400),
             // CustomError::BadRequestRegister(e) => {
             //     Response::from_json(&e).map(|r| r.with_status(400))
             // }
@@ -52,7 +52,7 @@ impl From<CustomError> for Result<Response> {
             // CustomError::Unauthorized(_) => Response::error(&error.to_string(), 401),
             // CustomError::NotFound => Response::error(&error.to_string(), 404),
             // CustomError::Redirect(uri) => Response::redirect(uri.parse().unwrap()),
-            CustomError::Other(_) => Response::error(&error.to_string(), 500),
+            CustomError::Other(_) => Response::error(error.to_string(), 500),
         }
     }
 }
@@ -91,7 +91,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             let mut jwk: JWK =
                 match serde_json::from_str(DID_JWK) {
                     Ok(j) => j,
-                    Err(e) => return Response::error(&format!("Could not load JWK: {}", e), 500),
+                    Err(e) => return Response::error(format!("Could not load JWK: {}", e), 500),
                 };
             jwk.key_id = Some(format!("{}#controller", did));
             let url = req.url()?;
