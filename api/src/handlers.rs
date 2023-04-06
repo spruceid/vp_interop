@@ -299,7 +299,7 @@ pub(crate) mod tests {
     use crate::{db::tests::MemoryDBClient, dids::did_resolvers};
 
     use super::*;
-    use did_key::DIDKey;
+    use did_method_key::DIDKey;
     use did_web::DIDWeb;
     use pretty_assertions::assert_eq;
     use serde_json::json;
@@ -448,8 +448,8 @@ pub(crate) mod tests {
                 // }
             ],
             "issuer": did_web,
-            "issuanceDate": OffsetDateTime::now_utc().format(&Rfc3339).unwrap(),
-            "expirationDate": (OffsetDateTime::now_utc() + (52*10).weeks()).format(&Rfc3339).unwrap(),
+            "issuanceDate": OffsetDateTime::now_utc().replace_nanosecond(0).unwrap().format(&Rfc3339).unwrap(),
+            "expirationDate": (OffsetDateTime::now_utc() + (52*10).weeks()).replace_nanosecond(0).unwrap().format(&Rfc3339).unwrap(),
             "type": [
                 "VerifiableCredential",
                 "DomainLinkageCredential"
