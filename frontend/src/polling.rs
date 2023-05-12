@@ -283,11 +283,12 @@ struct CheckParams {
 }
 
 fn gen_link_img(uuid: &Uuid, params: &CheckParams) -> (String, String) {
+    //TODO: set response mode and presentation_type in the check params
     let mut request_uri = crate::API_BASE
-        .join(&format!("vp/{}/request", uuid))
+        .join(&format!("vp/{}/mdl_request", uuid))
         .unwrap();
     request_uri.set_query(Some(&serde_urlencoded::to_string(params).unwrap()));
-    let url = format!("openid-vc://?request_uri={request_uri}",);
+    let url = format!("mdoc-openid4vp://?request_uri={request_uri}",);
     let code = QrCode::new(url.clone()).unwrap();
     let image = DynamicImage::ImageLuma8(code.render::<Luma<u8>>().build());
     let mut bytes: Vec<u8> = Vec::new();

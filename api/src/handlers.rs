@@ -28,7 +28,7 @@ use crate::{
     CustomError, API_PREFIX,
 };
 
-fn gen_nonce() -> Nonce {
+pub fn gen_nonce() -> Nonce {
     let nonce: String = rand::thread_rng()
         .sample_iter(&Alphanumeric)
         .take(16)
@@ -170,6 +170,7 @@ pub async fn id_token<'a>(
         jwk,
     )
     .context("Could not sign JWT")?;
+
     db.put_vp(
         id,
         VPProgress::Started(StartedInfo {
