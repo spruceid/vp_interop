@@ -18,7 +18,6 @@ mod dids;
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 const APP_BASE_URL_KEY: &str = "APP_BASE_URL";
-const BASE_URL_KEY: &str = "BASE_URL";
 const DID_KEY: &str = "DID";
 const API_PREFIX: &str = "/vp";
 const DID_JWK: &str = r#"{"kty":"EC","crv":"secp256k1","x":"nrVtymZmqiSu9lU8DmVnB6W7XayJUj4uN7hC3uujZ9s","y":"XZA56MU96ne2c2K-ldbZxrAmLOsneJL1lE4PFnkyQnA","d":"mojL_WMJuMp1vmHNLUkc4es6IeAfcDB7qyZqTeKCEqE"}"#;
@@ -76,6 +75,14 @@ fn get_cors() -> Cors {
         .with_allowed_headers(vec!["authorization".to_string()])
 }
 
+fn get_base_url(req: &Request) -> Url {
+    let mut res = req.url().expect("Could not extract URL from request");
+    res.set_path("");
+    res.set_query(None);
+    res.set_fragment(None);
+    res
+}
+
 #[event(fetch)]
 pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Response> {
     let status_path = format!("{}/:id/status", API_PREFIX);
@@ -87,7 +94,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             headers.append(ContentType::name().as_ref(), "application/jwt")?;
             let did = ctx.var(DID_KEY)?.to_string();
             let app_base_url = ctx.var(APP_BASE_URL_KEY)?.to_string().parse().unwrap();
-            let base_url = ctx.var(BASE_URL_KEY)?.to_string().parse().unwrap();
+            let base_url = get_base_url(&req);
             let mut jwk: JWK =
                 match serde_json::from_str(DID_JWK) {
                     Ok(j) => j,
@@ -140,8 +147,8 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
         .options(&status_path, |_req, _ctx| {
             Response::empty()?.with_cors(&get_cors())
         })
-        .get("/.well-known/did.json", |_req, ctx| {
-            let base_url = ctx.var(BASE_URL_KEY)?.to_string();
+        .get("/.well-known/did.json", |req, ctx| {
+            let base_url = get_base_url(&req);
             let did = ctx.var(DID_KEY)?.to_string();
             // TODO MSFT needs `#controller` for the vm ID but ssi gives a `INVALID_DID` when resolving it for signing as JWT
             // MSFT doesn't support serviceEndpoint with `origins`

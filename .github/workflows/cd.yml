@@ -1,0 +1,53 @@
+name: cd
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    env:
+      API_BASE: Hello
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install trunk
+        uses: baptiste0928/cargo-install@v2
+        with:
+          crate: trunk
+      - name: Set env vars for production
+        run: |
+          echo "API_BASE='https://api.vp.interop.spruceid.xyz'" >> $GITHUB_ENV
+        if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Set env vars for preview
+        run: |
+          echo "API_BASE=https://${GITHUB_REF##*/}.vp_interop_api.pages.dev" >> $GITHUB_ENV
+        if: ${{ github.ref != 'refs/heads/main' }}
+      - name: Publish
+        uses: cloudflare/wrangler-action@2
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          command: pages publish
+          workingDirectory: 'frontend'
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install trunk
+        uses: baptiste0928/cargo-install@v2
+        with:
+          crate: worker-build
+          version: "0.0.9"
+      - name: Publish
+        uses: cloudflare/wrangler-action@2
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          command: publish
+          workingDirectory: 'api'

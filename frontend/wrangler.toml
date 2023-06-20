@@ -1,0 +1,17 @@
+name = "vp_interop_app"
+type = "webpack"
+
+routes = ["app.vp.interop.spruceid.xyz/*"]
+
+compatibility_date = "2022-11-03"
+
+[build]
+command = "trunk build"
+
+# TODO switch to wrangler v2
+
+[build.upload]
+format = "service-worker"
+
+[site]
+bucket = "./dist"
