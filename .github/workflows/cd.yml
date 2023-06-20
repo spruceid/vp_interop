@@ -44,12 +44,12 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: pages publish --branch $BRANCH ./dist
+          command: pages deploy --project-name=vp_interop_app --branch $BRANCH ./dist
   backend:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: frontend
+        working-directory: api
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
