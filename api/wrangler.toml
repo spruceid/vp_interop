@@ -13,6 +13,3 @@ kv_namespaces = [
 WORKERS_RS_VERSION = "0.0.12"
 APP_BASE_URL = "https://app.vp.interop.spruceid.xyz"
 DID = "did:web:api.vp.interop.spruceid.xyz"
-
-[build]
-command = "worker-build --release"

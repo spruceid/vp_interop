@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       API_BASE: Hello
+    defaults:
+      run:
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v3
       - name: Install trunk
@@ -28,26 +31,31 @@ jobs:
         run: |
           echo "API_BASE=https://${GITHUB_HEAD_REF//\//-}.vp_interop_api.pages.dev" >> $GITHUB_ENV
         if: ${{ github.ref != 'refs/heads/main' }}
+      - name: Build
+        run: trunk build --release
       - name: Publish
         uses: cloudflare/wrangler-action@2.0.0
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: pages publish
-          workingDirectory: 'frontend'
+          command: pages publish --branch $BRANCH ./dist
   backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Install trunk
+      - name: Install worker-build
         uses: baptiste0928/cargo-install@v2
         with:
           crate: worker-build
           version: "0.0.9"
+      - name: Build
+        run: worker-build --release
       - name: Publish
         uses: cloudflare/wrangler-action@2.0.0
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: publish
+          command: deploy
           workingDirectory: 'api'
