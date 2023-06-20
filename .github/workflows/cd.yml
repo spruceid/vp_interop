@@ -19,10 +19,14 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: "wasm32-unknown-unknown"
       - name: Install trunk
         uses: baptiste0928/cargo-install@v2
         with:
           crate: trunk
+      - uses: Swatinem/rust-cache@v2
       - name: Set env vars for production
         run: |
           echo "API_BASE='https://api.vp.interop.spruceid.xyz'" >> $GITHUB_ENV
@@ -43,13 +47,20 @@ jobs:
           command: pages publish --branch $BRANCH ./dist
   backend:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: "wasm32-unknown-unknown"
       - name: Install worker-build
         uses: baptiste0928/cargo-install@v2
         with:
           crate: worker-build
           version: "0.0.9"
+      - uses: Swatinem/rust-cache@v2
       - name: Build
         run: worker-build --release
       - name: Publish
