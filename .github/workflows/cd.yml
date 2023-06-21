@@ -43,7 +43,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: deploy ${{ env.ENVIRONMENT }} ./dist
+          command: deploy ${{ env.ENVIRONMENT }} ./dist/index.html
   backend:
     runs-on: ubuntu-latest
     defaults:
