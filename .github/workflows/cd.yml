@@ -30,12 +30,11 @@ jobs:
       - name: Set env vars for production
         run: |
           echo "API_BASE='https://api.vp.interop.spruceid.xyz'" >> $GITHUB_ENV
-          echo "ENVIRONMENT=production" >> $GITHUB_ENV
         if: ${{ github.ref == 'refs/heads/main' }}
       - name: Set env vars for preview
         run: |
           echo "API_BASE=https://${GITHUB_HEAD_REF//\//-}.vp_interop_api.pages.dev" >> $GITHUB_ENV
-          echo "ENVIRONMENT=preview" >> $GITHUB_ENV
+          echo "ENVIRONMENT='--env preview'" >> $GITHUB_ENV
         if: ${{ github.ref != 'refs/heads/main' }}
       - name: Build
         run: trunk build --release
@@ -46,7 +45,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: deploy --env ${{ env.ENVIRONMENT }}
+          command: deploy ${{ env.ENVIRONMENT }}
   backend:
     runs-on: ubuntu-latest
     defaults:
@@ -63,13 +62,9 @@ jobs:
           crate: worker-build
           version: "0.0.9"
       - uses: Swatinem/rust-cache@v2
-      - name: Set env vars for production
-        run: |
-          echo "ENVIRONMENT=production" >> $GITHUB_ENV
-        if: ${{ github.ref == 'refs/heads/main' }}
       - name: Set env vars for preview
         run: |
-          echo "ENVIRONMENT=preview" >> $GITHUB_ENV
+          echo "ENVIRONMENT='--env preview'" >> $GITHUB_ENV
         if: ${{ github.ref != 'refs/heads/main' }}
       - name: Build
         run: worker-build --release
@@ -78,5 +73,5 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: deploy --env ${{ env.ENVIRONMENT }}
+          command: deploy ${{ env.ENVIRONMENT }}
           workingDirectory: 'api'

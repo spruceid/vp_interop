@@ -15,3 +15,6 @@ format = "service-worker"
 
 [site]
 bucket = "./dist"
+
+[env.preview]
+routes = []
