@@ -4,8 +4,6 @@ routes = ["app.vp.interop.spruceid.xyz/*"]
 
 compatibility_date = "2023-06-21"
 
-main = "src/main.rs"
-
 [site]
 bucket = "./dist"
 
