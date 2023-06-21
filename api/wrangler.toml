@@ -1,6 +1,7 @@
 name = "vp_interop_api"
 main = "build/worker/shim.mjs"
 
+workers_dev = false
 routes = ["api.vp.interop.spruceid.xyz/*"]
 
 compatibility_date = "2022-11-21"
@@ -16,3 +17,4 @@ DID = "did:web:api.vp.interop.spruceid.xyz"
 
 [env.preview]
 routes = []
+workers_dev = true

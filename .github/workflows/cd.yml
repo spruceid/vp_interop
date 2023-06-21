@@ -31,7 +31,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' }}
       - name: Set env vars for preview
         run: |
-          echo "API_BASE=https://${GITHUB_HEAD_REF//\//-}.vp_interop_api.pages.dev" >> $GITHUB_ENV
+          echo "API_BASE=https://vp_interop_api-preview.spruceid.workers.dev/" >> $GITHUB_ENV
           echo "ENVIRONMENT=--env preview" >> $GITHUB_ENV
         if: ${{ github.ref != 'refs/heads/main' }}
       - name: Build
