@@ -34,7 +34,7 @@ jobs:
       - name: Set env vars for preview
         run: |
           echo "API_BASE=https://${GITHUB_HEAD_REF//\//-}.vp_interop_api.pages.dev" >> $GITHUB_ENV
-          echo "ENVIRONMENT='--env preview'" >> $GITHUB_ENV
+          echo "ENVIRONMENT=--env preview" >> $GITHUB_ENV
         if: ${{ github.ref != 'refs/heads/main' }}
       - name: Build
         run: trunk build --release
@@ -64,7 +64,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Set env vars for preview
         run: |
-          echo "ENVIRONMENT='--env preview'" >> $GITHUB_ENV
+          echo "ENVIRONMENT=--env preview" >> $GITHUB_ENV
         if: ${{ github.ref != 'refs/heads/main' }}
       - name: Build
         run: worker-build --release
