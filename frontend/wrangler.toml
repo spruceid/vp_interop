@@ -1,0 +1,13 @@
+name = "vp_interop_app"
+
+workers_dev = false
+routes = ["app.vp.interop.spruceid.xyz/*"]
+
+compatibility_date = "2023-06-21"
+
+[site]
+bucket = "./dist"
+
+[env.preview]
+routes = []
+workers_dev = true

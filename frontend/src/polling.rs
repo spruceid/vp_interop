@@ -8,6 +8,8 @@ use uuid::Uuid;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 use yew::{prelude::*, Component, Context, Html};
 
+use crate::API_BASE;
+
 const REFRESH_INTERVAL: u32 = 3000; // milliseconds
 
 enum VerifyPollState {
@@ -51,10 +53,12 @@ pub enum Click {
 }
 
 async fn fetch_status(id: Uuid) -> Msg {
-    let resp = Request::get(&format!(
-        "https://api.vp.interop.spruceid.xyz/vp/{}/status",
-        id
-    ))
+    let resp = Request::get(
+        &API_BASE
+            .join(&format!("/vp/{id}/status"))
+            .unwrap()
+            .to_string(),
+    )
     .send()
     .await
     .unwrap();
