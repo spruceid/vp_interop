@@ -5,11 +5,9 @@ use yew_router::prelude::*;
 mod polling;
 use polling::*;
 
-const API_BASE_ENV: Option<&'static str> = option_env!("API_BASE");
-
 lazy_static::lazy_static! {
     // TODO broken always using the _or
-    static ref API_BASE: Url = Url::parse(API_BASE_ENV.unwrap_or("https://api.vp.interop.spruceid.xyz")).unwrap();
+    static ref API_BASE: Url = Url::parse(option_env!("API_BASE").unwrap_or("https://api.vp.interop.spruceid.xyz")).unwrap();
 }
 
 #[derive(Clone, Routable, PartialEq)]
