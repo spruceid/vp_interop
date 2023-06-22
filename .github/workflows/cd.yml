@@ -34,12 +34,8 @@ jobs:
           echo "ENVIRONMENT=--env preview" >> $GITHUB_ENV
         if: ${{ github.ref != 'refs/heads/main' }}
       - uses: Swatinem/rust-cache@v2
-        with:
-          env-vars: "API_BASE"
       - name: Build
-        env:
-          API_BASE: ${{ env.API_BASE }}
-        run: trunk build --release
+        run: API_BASE=${{ env.API_BASE }} trunk build --release
       - name: Publish
         uses: cloudflare/wrangler-action@2.0.0
         env:
