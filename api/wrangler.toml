@@ -19,5 +19,5 @@ DID = "did:web:api.vp.interop.spruceid.xyz"
 routes = []
 workers_dev = true
 kv_namespaces = [
-    { binding = "vp_interop_api_preview", id = "848c434c068745cc82c2afc713043c98" }
+    { binding = "JWT_VC_INTEROP", id = "4a7d0889c6e747728b888087bb0081cd" }
 ]
