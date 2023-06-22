@@ -27,7 +27,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Set env vars for production
         run: |
-          echo "API_BASE='https://api.vp.interop.spruceid.xyz'" >> $GITHUB_ENV
+          echo "API_BASE=https://api.vp.interop.spruceid.xyz" >> $GITHUB_ENV
         if: ${{ github.ref == 'refs/heads/main' }}
       - name: Set env vars for preview
         run: |
@@ -35,12 +35,13 @@ jobs:
           echo "ENVIRONMENT=--env preview" >> $GITHUB_ENV
         if: ${{ github.ref != 'refs/heads/main' }}
       - name: Build
+        env:
+          API_BASE: ${{ env.API_BASE }}
         run: trunk build --release
       - name: Publish
         uses: cloudflare/wrangler-action@2.0.0
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
-          API_BASE: ${{ env.API_BASE }}
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
