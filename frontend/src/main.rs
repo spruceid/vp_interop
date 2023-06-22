@@ -6,7 +6,6 @@ mod polling;
 use polling::*;
 
 lazy_static::lazy_static! {
-    // TODO broken always using the _or
     static ref API_BASE: Url = Url::parse(option_env!("API_BASE").unwrap_or("https://api.vp.interop.spruceid.xyz")).unwrap();
 }
 

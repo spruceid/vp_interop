@@ -24,7 +24,6 @@ jobs:
         uses: baptiste0928/cargo-install@v2
         with:
           crate: trunk
-      - uses: Swatinem/rust-cache@v2
       - name: Set env vars for production
         run: |
           echo "API_BASE=https://api.vp.interop.spruceid.xyz" >> $GITHUB_ENV
@@ -34,6 +33,9 @@ jobs:
           echo "API_BASE=https://vp_interop_api-preview.spruceid.workers.dev/" >> $GITHUB_ENV
           echo "ENVIRONMENT=--env preview" >> $GITHUB_ENV
         if: ${{ github.ref != 'refs/heads/main' }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          env-vars: "API_BASE"
       - name: Build
         env:
           API_BASE: ${{ env.API_BASE }}
