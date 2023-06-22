@@ -35,7 +35,7 @@ jobs:
         if: ${{ github.ref != 'refs/heads/main' }}
       - uses: Swatinem/rust-cache@v2
       - name: Build
-        run: API_BASE=${{ env.API_BASE }} trunk build --release
+        run: trunk build --release
       - name: Publish
         uses: cloudflare/wrangler-action@2.0.0
         env:
