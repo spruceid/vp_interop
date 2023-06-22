@@ -34,6 +34,9 @@ jobs:
           echo "ENVIRONMENT=--env preview" >> $GITHUB_ENV
         if: ${{ github.ref != 'refs/heads/main' }}
       - uses: Swatinem/rust-cache@v2
+      - uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Build
         run: trunk build --release
       - name: Publish
@@ -62,6 +65,9 @@ jobs:
           crate: worker-build
           version: "0.0.9"
       - uses: Swatinem/rust-cache@v2
+      - uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Set env vars for preview
         run: |
           echo "ENVIRONMENT=--env preview" >> $GITHUB_ENV
