@@ -1,16 +1,16 @@
+use crate::db::StartedInfo;
 use dids::did_resolvers;
 use headers::{CacheControl, ContentType, Header};
+use isomdl::definitions::helpers::non_empty_map::Error as NonEmptyMapError;
+use mdl_data_fields::minimal_mdl_request;
 use serde_json::json;
+use ssi::jwk::Base64urlUInt;
+use ssi::jwk::Params;
 use ssi::jwk::JWK;
 use thiserror::Error;
 use uuid::Uuid;
 use verify::configured_openid4vp_mdl_request;
 use worker::*;
-use mdl_data_fields::minimal_mdl_request;
-use ssi::jwk::Params;
-use ssi::jwk::Base64urlUInt;
-use crate::db::StartedInfo;
-use isomdl::definitions::helpers::non_empty_map::Error as NonEmptyMapError;
 
 mod handlers;
 use handlers::*;
@@ -19,8 +19,8 @@ use db::{cf::CFDBClient, VPProgress};
 mod dids;
 mod mdl_data_fields;
 use oidc4vp::mdl_response::Jarm;
-pub mod verify;
 pub mod present;
+pub mod verify;
 
 // TODO find a replacement for console_* when tracing-wasm or tracing-web are compatible.
 
@@ -77,31 +77,31 @@ impl From<base64::DecodeError> for CustomError {
 }
 
 impl From<p256::elliptic_curve::Error> for CustomError {
-    fn from(value: p256::elliptic_curve::Error ) -> Self {
+    fn from(value: p256::elliptic_curve::Error) -> Self {
         CustomError::BadRequest(value.to_string())
     }
 }
 
 impl From<siop::openidconnect::url::ParseError> for CustomError {
-    fn from(value: siop::openidconnect::url::ParseError ) -> Self {
+    fn from(value: siop::openidconnect::url::ParseError) -> Self {
         CustomError::BadRequest(value.to_string())
     }
 }
 
 impl From<x509_certificate::X509CertificateError> for CustomError {
-    fn from(value: x509_certificate::X509CertificateError ) -> Self {
+    fn from(value: x509_certificate::X509CertificateError) -> Self {
         CustomError::BadRequest(value.to_string())
     }
 }
 
 impl From<ssi::jwk::Error> for CustomError {
-    fn from(value: ssi::jwk::Error ) -> Self {
+    fn from(value: ssi::jwk::Error) -> Self {
         CustomError::KeyError(value.to_string())
     }
 }
 
 impl From<ssi::jws::Error> for CustomError {
-    fn from(value: ssi::jws::Error ) -> Self {
+    fn from(value: ssi::jws::Error) -> Self {
         CustomError::KeyError(value.to_string())
     }
 }
@@ -208,11 +208,11 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 Err(e) => e.into()
             }.and_then(|r| r.with_cors(&get_cors()))
         })
-        .get_async(&format!("{}/:id/mdl_request", API_PREFIX), |_req, ctx| async move {
+        .get_async(&format!("{}/:id/mdl_request", API_PREFIX), |req, ctx| async move {
             let id = get_id!(ctx);
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/jwt")?;
-            let base_url: Url = ctx.var(BASE_URL_KEY)?.to_string().parse()?;
+            let base_url = get_base_url(&req);
             match configured_openid4vp_mdl_request(id, base_url, &mut CFDBClient {ctx}).await {
                 Ok(jwt) => Ok(Response::from_bytes(jwt.as_bytes().to_vec())?.with_headers(headers)),
                 Err(e) => e.into(),
