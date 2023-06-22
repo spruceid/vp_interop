@@ -29,19 +29,16 @@ pub async fn configured_openid4vp_mdl_request(
 
     let vk = include_str!("./test/verifier_testing_key.b64");
     let vk_bytes = base64::decode(vk)?;
-    let vsk: p256::SecretKey = p256::SecretKey::from_sec1_der(&vk_bytes)?.into();
+    let vsk = p256::SecretKey::from_sec1_der(&vk_bytes)?;
     let mut verifier_key = ssi::jwk::p256_parse(&vsk.public_key().to_sec1_bytes())?;
     let params: Params = verifier_key.params.clone();
-    match params {
-        Params::EC(mut p) => {
-            p.ecc_private_key = Some(Base64urlUInt(vsk.to_bytes().to_vec()));
-            verifier_key.params = Params::EC(p)
-        }
-        _ => {}
+    if let Params::EC(mut p) = params {
+        p.ecc_private_key = Some(Base64urlUInt(vsk.to_bytes().to_vec()));
+        verifier_key.params = Params::EC(p);
     }
 
     let x509c = include_str!("./test/verifier_test_cert.b64");
-    let x509_bytes = base64::decode(x509c.clone())?;
+    let x509_bytes = base64::decode(x509c)?;
     let x509_certificate = x509_certificate::X509Certificate::from_der(x509_bytes)?;
     let client_id = x509_certificate.subject_common_name();
 
@@ -85,6 +82,7 @@ pub async fn configured_openid4vp_mdl_request(
     Ok(jwt)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn openid4vp_mdl_request(
     id: Uuid,
     requested_fields: NonEmptyMap<String, NonEmptyMap<Option<String>, Option<bool>>>,
