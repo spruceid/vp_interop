@@ -43,6 +43,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          preCommands: npm install @cloudflare/kv-asset-handler@0.3.0
           command: deploy ${{ env.ENVIRONMENT }}
           workingDirectory: 'frontend'
   backend:
