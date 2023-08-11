@@ -62,7 +62,7 @@ pub async fn configured_openid4vp_mdl_request(
     }
 
     let x509c = include_str!("./test/verifier_test_cert.b64");
-    let x509_bytes = base64::decode(x509c.clone())?;
+    let x509_bytes = base64::decode(x509c)?;
     let x509_certificate = x509_certificate::X509Certificate::from_der(x509_bytes)?;
     let client_id = x509_certificate.subject_common_name();
     let vp_formats = json!({"mso_mdoc": {
@@ -110,6 +110,7 @@ pub async fn configured_openid4vp_mdl_request(
     Ok(jwt)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn openid4vp_mdl_request(
     id: Uuid,
     requested_fields: NonEmptyMap<String, NonEmptyMap<Option<String>, Option<bool>>>,

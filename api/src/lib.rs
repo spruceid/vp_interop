@@ -1,3 +1,4 @@
+use crate::db::StartedInfo;
 use dids::did_resolvers;
 use headers::{CacheControl, ContentType, Header};
 use isomdl::definitions::helpers::non_empty_map::Error as NonEmptyMapError;
@@ -234,7 +235,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             };
             let url = req.url()?;
             let query = url.query().unwrap_or_default();
-            let _demo_params = match serde_urlencoded::from_str(query) {
+            match serde_urlencoded::from_str(query) {
                 Ok(p) => p,
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
