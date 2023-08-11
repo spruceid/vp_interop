@@ -9,7 +9,7 @@ repository = "https://github.com/spruceid/vp_interop/"
 
 [dependencies]
 base64 = "0.13.1"
-getrandom = { version = "0.2.8", features = ["js"] }
+getrandom = { version = "0.2", features = ["js"] }
 gloo = "0.8.0"
 image = "0.23"
 lazy_static = "1.4.0"

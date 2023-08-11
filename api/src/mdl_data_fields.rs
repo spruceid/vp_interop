@@ -2,47 +2,46 @@ use std::collections::BTreeMap;
 
 pub fn minimal_mdl_request() -> BTreeMap<Option<String>, Option<bool>> {
     BTreeMap::from([
-        (Some("family_name".to_string()),Some( true)),
-        (Some("given_name".to_string()),Some( true)),
-        (Some("birth_date".to_string()), Some(false)),
-        (Some("issue_date".to_string()), Some(false)),
-        (Some("expiry_date".to_string()), Some(false)),
-        (Some("issuing_country".to_string()), Some(false)),
-        (Some("issuing_authority".to_string()), Some(false)),
-        (Some("document_number".to_string()), Some(false)),
-        (Some("portrait".to_string()), Some(false)),
-        (Some("driving_privileges".to_string()), Some(false)),
-        (Some("un_distinguishing_sign".to_string()), Some(false)),
-        (Some("administrative_number".to_string()), Some(false)),
-        (Some("sex".to_string()), Some(false)),
-        (Some("height".to_string()), Some(false)),
-        (Some("weight".to_string()), Some(false)),
-        (Some("eye_colour".to_string()), Some(false)),
-        (Some("hair_colour".to_string()), Some(false)),
-        (Some("birth_place".to_string()), Some(false)),
-        (Some("resident_address".to_string()), Some(false)),
-        (Some("portrait_capture_date".to_string()), Some(false)),
-        (Some("age_in_years".to_string()), Some(false)),
-        (Some("age_birth_year".to_string()), Some(false)),
-        (Some("age_over_18".to_string()), Some(true,)),
-        (Some("age_over_21".to_string()), Some(false,)),
-        (Some("issuing_jurisdiction".to_string()), Some(false)),
-        (Some("nationality".to_string()), Some(false)),
-        (Some("resident_city".to_string()), Some(false)),
-        (Some("resident_state".to_string()), Some(false)),
-        (Some("resident_postal_code".to_string()), Some(false)),
-        (Some("resident_country".to_string()), Some(false)),
-        ])
+        (Some("family_name".to_string()), Some(true)),
+        (Some("given_name".to_string()), Some(true)),
+        (Some("birth_date".to_string()), Some(true)),
+        (Some("issue_date".to_string()), Some(true)),
+        (Some("expiry_date".to_string()), Some(true)),
+        (Some("issuing_country".to_string()), Some(true)),
+        (Some("issuing_authority".to_string()), Some(true)),
+        (Some("document_number".to_string()), Some(true)),
+        (Some("portrait".to_string()), Some(true)),
+        (Some("driving_privileges".to_string()), Some(true)),
+        (Some("un_distinguishing_sign".to_string()), Some(true)),
+        (Some("administrative_number".to_string()), Some(true)),
+        (Some("sex".to_string()), Some(true)),
+        (Some("height".to_string()), Some(true)),
+        (Some("weight".to_string()), Some(true)),
+        (Some("eye_colour".to_string()), Some(true)),
+        (Some("hair_colour".to_string()), Some(true)),
+        (Some("birth_place".to_string()), Some(true)),
+        (Some("resident_address".to_string()), Some(true)),
+        (Some("portrait_capture_date".to_string()), Some(true)),
+        (Some("age_in_years".to_string()), Some(true)),
+        (Some("age_birth_year".to_string()), Some(true)),
+        (Some("age_over_18".to_string()), Some(true)),
+        (Some("age_over_21".to_string()), Some(true)),
+        (Some("issuing_jurisdiction".to_string()), Some(true)),
+        (Some("nationality".to_string()), Some(true)),
+        (Some("resident_city".to_string()), Some(true)),
+        (Some("resident_state".to_string()), Some(true)),
+        (Some("resident_postal_code".to_string()), Some(true)),
+        (Some("resident_country".to_string()), Some(true)),
+    ])
 }
 
-pub fn _age_over_mdl_request() -> BTreeMap<Option<String>, Option<bool>> {
+pub fn age_over_mdl_request() -> BTreeMap<Option<String>, Option<bool>> {
     BTreeMap::from([
-        (Some("age_over_18".to_string()), Some(false,)),
-        (Some("age_over_21".to_string()), Some(false,)),
-        ])
+        (Some("age_over_18".to_string()), Some(true)),
+    ])
 }
 
-pub fn _mdl_fields() -> Vec<String> {
+pub fn _aamva_mdl_fields() -> Vec<String> {
     vec![
         "org.iso.18013.5.1.family_name".to_string(),
         "org.iso.18013.5.1.given_name".to_string(),
@@ -92,5 +91,5 @@ pub fn _mdl_fields() -> Vec<String> {
         "org.iso.18013.5.1.aamva.CDL_indicator".to_string(),
         "org.iso.18013.5.1.aamva.DHS_compliance_text".to_string(),
         "org.iso.18013.5.1.aamva.DHS_temporary_lawful_status".to_string(),
-        ]
+    ]
 }

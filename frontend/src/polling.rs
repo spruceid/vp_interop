@@ -17,7 +17,7 @@ enum VerifyPollState {
         img: String,
         url: String,
         _clock_handle: Interval,
-        check_params: CheckParams,
+        check_params: Params,
     },
     PostScan {
         _clock_handle: Interval,
@@ -30,10 +30,20 @@ enum VerifyPollState {
     },
 }
 
+// pub enum UseCase {
+//     Mdl(VerifyPoll),
+//     AgeOver18(VerifyPoll)
+// }
+
 pub struct VerifyPoll {
     state: VerifyPollState,
     uuid: Uuid,
     is_mobile: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct Props{
+    pub presentation: String,
 }
 
 pub enum Msg {
@@ -83,18 +93,26 @@ fn create_clock_handle(uuid: Uuid, ctx: &Context<VerifyPoll>) -> Interval {
 
 impl Component for VerifyPoll {
     type Message = Msg;
-    type Properties = ();
+    type Properties = Props;
 
     fn create(ctx: &Context<Self>) -> Self {
         let uuid = Uuid::new_v4();
-        let check_params = CheckParams::default();
-        let (url, img) = gen_link_img(&uuid, &check_params);
+        let props = ctx.props().clone();
+        let mut params;
+
+        if props.presentation == "age_over_18".to_string() {
+            params = Params::MdlParams(MdlParams { revocation_check: false, response_mode: "direct_post.jwt".to_string(), presentation_type: "age_over_18".to_string() })
+        } else {
+            params = Params::MdlParams(MdlParams { revocation_check: false, response_mode: "direct_post.jwt".to_string(), presentation_type: "mDL".to_string() })
+        }
+        
+        let (url, img) = gen_link_img(&uuid, &params);
 
         Self {
             state: VerifyPollState::PreScan {
                 img,
                 url,
-                check_params,
+                check_params: params,
                 _clock_handle: create_clock_handle(uuid, ctx),
             },
             uuid,
@@ -142,8 +160,19 @@ impl Component for VerifyPoll {
                     ref mut check_params,
                     ..
                 } => {
-                    check_params.revocation_check = !check_params.revocation_check;
-                    (*url, *img) = gen_link_img(&self.uuid, &check_params);
+                    match check_params {
+                        Params::CheckParams(mut c) => {
+                            c.revocation_check = !c.revocation_check;
+                            (*url, *img) = gen_link_img(&self.uuid, &Params::CheckParams(c.clone()));
+                           
+                        },
+                        Params::MdlParams(ref mut m) => {
+                            m.revocation_check = !m.revocation_check;
+                            (*url, *img) = gen_link_img(&self.uuid, &Params::MdlParams(m.clone()));
+                        }
+                    }
+                    // check_params.revocation_check = !check_params.revocation_check;
+                    // (*url, *img) = gen_link_img(&self.uuid, &check_params);
                     // url = url;
                     // img = img;
                     true
@@ -177,11 +206,20 @@ impl Component for VerifyPoll {
                         None
                     })
                 };
+                let revocation_check;
+                match check_params {
+                    Params::CheckParams(c) => {
+                        revocation_check = c.revocation_check;
+                    },
+                    Params::MdlParams(m) => {
+                        revocation_check = m.revocation_check;
+                    }
+                }
                 let onclick_revocation =
                     ctx.link().callback(|_| Msg::Click(Click::RevocationCheck));
                 let params = html! {
                     <>
-                        <input type="checkbox" id="revocation" name="revocation" value="revocation" checked={check_params.revocation_check} onclick={onclick_revocation}/>
+                        <input type="checkbox" id="revocation" name="revocation" value="revocation" checked={revocation_check} onclick={onclick_revocation}/>
                         <label for="revocation">{"Check revocation status"}</label>
                     </>
                 };
@@ -277,17 +315,38 @@ fn is_mobile() -> bool {
     }
 }
 
-#[derive(Default, Clone, Serialize)]
+#[derive(Default, Clone, Serialize, Copy)]
 struct CheckParams {
     revocation_check: bool,
 }
 
-fn gen_link_img(uuid: &Uuid, params: &CheckParams) -> (String, String) {
+#[derive(Default, Clone, Serialize)]
+struct MdlParams {
+    revocation_check: bool,
+    response_mode: String,
+    presentation_type: String,
+}
+
+#[derive(Clone, Serialize)]
+enum Params {
+    CheckParams(CheckParams),
+    MdlParams(MdlParams)
+}
+
+fn gen_link_img(uuid: &Uuid, params: &Params) -> (String, String) {
     //TODO: set response mode and presentation_type in the check params
     let mut request_uri = crate::API_BASE
         .join(&format!("vp/{}/mdl_request", uuid))
         .unwrap();
-    request_uri.set_query(Some(&serde_urlencoded::to_string(params).unwrap()));
+    match params {
+        Params::CheckParams(c) => {
+            request_uri.set_query(Some(&serde_urlencoded::to_string(c).unwrap()));
+        },
+        Params::MdlParams(m) => {
+            request_uri.set_query(Some(&serde_urlencoded::to_string(m).unwrap()));
+        }
+    }
+    
     let url = format!("mdoc-openid4vp://?request_uri={request_uri}",);
     let code = QrCode::new(url.clone()).unwrap();
     let image = DynamicImage::ImageLuma8(code.render::<Luma<u8>>().build());

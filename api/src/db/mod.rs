@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use isomdl_18013_7::verify::UnattendedSessionManager;
 
 // #[cfg(target_arch = "wasm32")]
 pub mod cf;
@@ -9,14 +10,21 @@ pub mod cf;
 const KV_NAMESPACE: &str = "JWT_VC_INTEROP";
 const TTL: u64 = 300; // 5min
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StartedInfo {
     pub nonce: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OnlinePresentmentState {
+    pub nonce: String,
+    pub unattended_session_manager: UnattendedSessionManager
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum VPProgress {
     Started(StartedInfo),
+    OPState(OnlinePresentmentState),
     Failed(serde_json::Value),
     Done(serde_json::Value),
 }
