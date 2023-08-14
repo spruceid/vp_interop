@@ -498,7 +498,7 @@ pub(crate) mod tests {
         let nonce = "RQjetbcYNngQLu0a".to_string();
         db.put_vp(
             id,
-            VPProgress::Started(StartedInfo { nonce: nonce }),
+            VPProgress::Started(StartedInfo { nonce }),
         )
         .await.unwrap();
         // expired

@@ -40,7 +40,7 @@ pub async fn configured_openid4vp_mdl_request(
 
     if presentation == "age_over_18" {
         requested_fields = NonEmptyMap::try_from(age_over_mdl_request())?;
-    } else if presentation =="mDL".to_string(){
+    } else if presentation ==*"mDL"{
         requested_fields = NonEmptyMap::try_from(minimal_mdl_request())?;
     } else {
         return Err(CustomError::BadRequest("Unsupported presentation type".to_string()))
@@ -50,15 +50,12 @@ pub async fn configured_openid4vp_mdl_request(
 
     let vk = include_str!("./test/verifier_testing_key.b64");
     let vk_bytes = base64::decode(vk)?;
-    let vsk: p256::SecretKey = p256::SecretKey::from_sec1_der(&vk_bytes)?.into();
+    let vsk: p256::SecretKey = p256::SecretKey::from_sec1_der(&vk_bytes)?;
     let mut verifier_key = ssi::jwk::p256_parse(&vsk.public_key().to_sec1_bytes())?;
     let params: Params = verifier_key.params.clone();
-    match params {
-        Params::EC(mut p) => {
-            p.ecc_private_key = Some(Base64urlUInt(vsk.to_bytes().to_vec()));
-            verifier_key.params = Params::EC(p)
-        }
-        _ => {}
+    if let Params::EC(mut p) = params {
+        p.ecc_private_key = Some(Base64urlUInt(vsk.to_bytes().to_vec()));
+        verifier_key.params = Params::EC(p)
     }
 
     let x509c = include_str!("./test/verifier_test_cert.b64");
@@ -78,7 +75,7 @@ pub async fn configured_openid4vp_mdl_request(
         authorization_encrypted_response_enc: "A256GCM".to_string(),
         require_signed_request_object: true,
         jwks: Value::Object(ec_key_pair.to_jwk_public_key().into()) ,
-        vp_formats: vp_formats,
+        vp_formats,
     };
 
     let payload = openid4vp_mdl_request(
@@ -161,37 +158,32 @@ pub async fn validate_openid4vp_mdl_response(
     db: &mut dyn DBClient,
 ) -> Result<BTreeMap<String, Value>, Openid4vpError> {
     let vp_progress = db.get_vp(id).await.unwrap();    
-    if let Some(progress) = vp_progress {
-        match progress {
-            VPProgress::OPState(mut p) => {
-                let mut session_manager = p.unattended_session_manager.clone();
-                let result = isomdl_18013_7::verify::decrypted_authorization_response(response, session_manager.clone())?;
-                let device_response: DeviceResponse = serde_cbor::from_slice(&result)?;
-                let result = session_manager.handle_response(device_response);
-                match result {
-                    Ok(r) => {
-                        p.v_data_2 = Some(true);
-                        p.v_data_3 = Some(true);
-                        p.v_sec_1 = Some(true);
-                        //TODO: check v_sec_2 and v_sec_3
-                        //TODO; bring saved to db in line with intent_to_retain from request
-                        db.put_vp(id, VPProgress::OPState(p))
-                            .await
-                            .unwrap();
-                        Ok(r)
-                    }
-                    Err(e) => {
-                        db.put_vp(
-                            id,
-                            VPProgress::Failed(json!(format!("Verification failed: {}", e))),
-                        )
-                        .await
-                        .unwrap();
-                        Err(Openid4vpError::OID4VPError)
-                    }
-                }
-            },
-            _ => {Err(Openid4vpError::OID4VPError)}
+    if let Some(VPProgress::OPState(mut progress)) = vp_progress {
+        let mut session_manager = progress.unattended_session_manager.clone();
+        let result = isomdl_18013_7::verify::decrypted_authorization_response(response, session_manager.clone())?;
+        let device_response: DeviceResponse = serde_cbor::from_slice(&result)?;
+        let result = session_manager.handle_response(device_response);
+        match result {
+            Ok(r) => {
+                progress.v_data_2 = Some(true);
+                progress.v_data_3 = Some(true);
+                progress.v_sec_1 = Some(true);
+                //TODO: check v_sec_2 and v_sec_3
+                //TODO; bring saved to db in line with intent_to_retain from request
+                db.put_vp(id, VPProgress::OPState(progress))
+                    .await
+                    .unwrap();
+                Ok(r)
+            }
+            Err(e) => {
+                db.put_vp(
+                    id,
+                    VPProgress::Failed(json!(format!("Verification failed: {}", e))),
+                )
+                .await
+                .unwrap();
+                Err(Openid4vpError::OID4VPError)
+            }
         }
     } else {
         Err(Openid4vpError::OID4VPError)
@@ -200,7 +192,7 @@ pub async fn validate_openid4vp_mdl_response(
 }
 
 pub async fn show_results(id: Uuid, db: &mut dyn DBClient,) -> Result<VPProgress, CustomError>{
-    let vp_progress = db.get_vp(id).await?;
+    let _vp_progress = db.get_vp(id).await?;
     // if let Some(progress) = vp_progress {
     //     match progress {
     //         VPProgress::InteropChecks(ic) => {
@@ -266,7 +258,7 @@ pub(crate) mod tests {
 
         let vk = include_str!("./test/verifier_testing_key.b64");
         let vk_bytes = base64::decode(vk).unwrap();
-        let vsk: p256::SecretKey = p256::SecretKey::from_sec1_der(&vk_bytes).unwrap().into();
+        let vsk: p256::SecretKey = p256::SecretKey::from_sec1_der(&vk_bytes).unwrap();
         let mut verifier_key = ssi::jwk::p256_parse(&vsk.public_key().to_sec1_bytes()).unwrap();
         let params: Params = verifier_key.params.clone();
         match params {
@@ -289,7 +281,7 @@ pub(crate) mod tests {
         let response_mode = "direct_post.jwt".to_string();
 
         let verifier_key_pair = josekit::jwe::ECDH_ES.generate_ec_key_pair(josekit::jwk::alg::ec::EcCurve::P256).unwrap();
-        let esk = verifier_key_pair.to_jwk_private_key();
+        let _esk = verifier_key_pair.to_jwk_private_key();
         let epk = verifier_key_pair.to_jwk_public_key();
 
         let jwks = json!({
@@ -300,7 +292,7 @@ pub(crate) mod tests {
             authorization_encrypted_response_alg: "ECDH-ES".to_string(),
             authorization_encrypted_response_enc: "A256GCM".to_string(),
             require_signed_request_object: true,
-            jwks: jwks,
+            jwks,
             vp_formats: json!({"mso_mdoc": {
                 "alg": [
                     "ES256"
@@ -374,7 +366,7 @@ pub(crate) mod tests {
         let state: State = State{ request_object: parsed_req.clone(), verifier_epk: verifier_jwk, mdoc_epk: cek_pair.to_jwk_public_key(), mdoc_esk: cek_pair.to_jwk_private_key() };
         
         //TODO: insert signature, not the key
-        let response = complete_mdl_response(prepared_response, state, der_bytes).await.unwrap();
+        let _response = complete_mdl_response(prepared_response, state, der_bytes).await.unwrap();
         //println!("response: {:#?}", response);
         // // Then mdoc app posts response to response endpoint
         //println!("response: {:?}", response);

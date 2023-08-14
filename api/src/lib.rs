@@ -232,14 +232,14 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
             let url = req.url()?;
-            let query = url.query().unwrap_or_default();
+            let _query = url.query().unwrap_or_default();
 
             match verify::validate_openid4vp_mdl_response(response, id, &mut CFDBClient {ctx}).await {
                 Ok(_) => Response::empty(),
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             }.and_then(|r| r.with_cors(&get_cors()))
         })
-        .get_async(&format!("{}/:id/mdl_results", API_PREFIX), |mut req, ctx| async move {
+        .get_async(&format!("{}/:id/mdl_results", API_PREFIX), |_req, ctx| async move {
             let id = get_id!(ctx);
             match verify::show_results(id, &mut CFDBClient {ctx}).await {
                 Ok(_) => Response::empty(),
