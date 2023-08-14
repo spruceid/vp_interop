@@ -127,7 +127,7 @@ pub async fn openid4vp_mdl_request(
     //Note: e_reader_key_bytes for the request object nonce will likely be removed in future versions of 18013-7
     let e_reader_key_bytes = ec_key_pair.to_jwk_public_key().to_string();
 
-    let unattended_session_manager: UnattendedSessionManager = UnattendedSessionManager { epk: ec_key_pair.to_der_private_key(), esk: ec_key_pair.to_der_public_key() };
+    let unattended_session_manager: UnattendedSessionManager = UnattendedSessionManager { epk: ec_key_pair.to_jwk_public_key(), esk: ec_key_pair.to_jwk_public_key() };
     let request = unattended_session_manager.mdl_request(
         requested_fields,
         client_id,
@@ -142,6 +142,13 @@ pub async fn openid4vp_mdl_request(
         VPProgress::OPState(OnlinePresentmentState {
             nonce: nonce.secret().clone(),
             unattended_session_manager,
+            v_data_1: Some(true),
+            v_data_2: None,
+            v_data_3: None,
+            v_sec_1: None,
+            v_sec_2: None,
+            v_sec_3: None,
+
         }),
     )
     .await?;
@@ -149,20 +156,26 @@ pub async fn openid4vp_mdl_request(
 }
 
 pub async fn validate_openid4vp_mdl_response(
-    response: Vec<u8>,
+    response: String,
     id: Uuid,
     db: &mut dyn DBClient,
 ) -> Result<BTreeMap<String, Value>, Openid4vpError> {
-    let device_response: DeviceResponse = serde_cbor::from_slice(&response)?;
-    let vp_progress = db.get_vp(id).await.unwrap();
+    let vp_progress = db.get_vp(id).await.unwrap();    
     if let Some(progress) = vp_progress {
         match progress {
             VPProgress::OPState(mut p) => {
-                let result = p.unattended_session_manager.handle_response(device_response);
+                let mut session_manager = p.unattended_session_manager.clone();
+                let result = isomdl_18013_7::verify::decrypted_authorization_response(response, session_manager.clone())?;
+                let device_response: DeviceResponse = serde_cbor::from_slice(&result)?;
+                let result = session_manager.handle_response(device_response);
                 match result {
                     Ok(r) => {
+                        p.v_data_2 = Some(true);
+                        p.v_data_3 = Some(true);
+                        p.v_sec_1 = Some(true);
+                        //TODO: check v_sec_2 and v_sec_3
                         //TODO; bring saved to db in line with intent_to_retain from request
-                        db.put_vp(id, VPProgress::Done(serde_json::json!(r)))
+                        db.put_vp(id, VPProgress::OPState(p))
                             .await
                             .unwrap();
                         Ok(r)
@@ -186,6 +199,25 @@ pub async fn validate_openid4vp_mdl_response(
 
 }
 
+pub async fn show_results(id: Uuid, db: &mut dyn DBClient,) -> Result<VPProgress, CustomError>{
+    let vp_progress = db.get_vp(id).await?;
+    // if let Some(progress) = vp_progress {
+    //     match progress {
+    //         VPProgress::InteropChecks(ic) => {
+    //             //Ok(ic)
+    //         }, 
+    //         VPProgress::Failed(f) => {
+    //             //Ok(f)
+    //         },
+    //         _ => {
+                
+    //         }
+
+    //     }
+    // }
+    todo!()
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -200,7 +232,7 @@ pub(crate) mod tests {
     use ssi::jwk::{Base64urlUInt, Params};
     use x509_certificate;
     use serde_json::Map;
-    use isomdl_18013_7::present::State;
+    use isomdl_18013_7::present::State; 
 
     #[tokio::test]
     async fn mdl_presentation_e2e() {
@@ -331,6 +363,8 @@ pub(crate) mod tests {
         let parsed_req: RequestObject = ssi::jwt::decode_verify(&request_object_jwt, &parsed_verifier_key).unwrap();
         assert_eq!(verifier_key.to_public(), parsed_verifier_key);
 
+        println!("parsed_req: {:?}", parsed_req);
+
         let prepared_response =
             prepare_openid4vp_mdl_response(parsed_req.clone(), documents)
                 .await
@@ -343,7 +377,7 @@ pub(crate) mod tests {
         let response = complete_mdl_response(prepared_response, state, der_bytes).await.unwrap();
         //println!("response: {:#?}", response);
         // // Then mdoc app posts response to response endpoint
-        println!("response: {:?}", response);
+        //println!("response: {:?}", response);
 
         //Verifier decrypts the response
         // let decrypter = josekit::jwe::ECDH_ES.decrypter_from_jwk(&esk).unwrap();
@@ -405,5 +439,5 @@ pub(crate) mod tests {
         let _parsed_req: RequestObject =
             ssi::jwt::decode_verify(&request_object_jwt, &parsed_verifier_key).unwrap();
         println!("request: {:?}", _parsed_req);
-    }    
+    }
 }

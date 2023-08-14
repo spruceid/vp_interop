@@ -18,13 +18,30 @@ pub struct StartedInfo {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OnlinePresentmentState {
     pub nonce: String,
-    pub unattended_session_manager: UnattendedSessionManager
+    pub unattended_session_manager: UnattendedSessionManager,
+    pub v_data_1: Option<bool>,
+    pub v_data_2: Option<bool>,
+    pub v_data_3: Option<bool>,
+    pub v_sec_1: Option<bool>,
+    pub v_sec_2: Option<bool>,
+    pub v_sec_3: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TestProgress {
+    pub v_data_1: Option<bool>,
+    pub v_data_2: Option<bool>,
+    pub v_data_3: Option<bool>,
+    pub v_sec_1: Option<bool>,
+    pub v_sec_2: Option<bool>,
+    pub v_sec_3: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum VPProgress {
     Started(StartedInfo),
     OPState(OnlinePresentmentState),
+    InteropChecks(TestProgress),
     Failed(serde_json::Value),
     Done(serde_json::Value),
 }

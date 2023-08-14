@@ -1,4 +1,3 @@
-use crate::db::StartedInfo;
 use dids::did_resolvers;
 use headers::{CacheControl, ContentType, Header};
 use isomdl::definitions::helpers::non_empty_map::Error as NonEmptyMapError;
@@ -18,7 +17,6 @@ mod db;
 use db::{cf::CFDBClient, VPProgress};
 mod dids;
 mod mdl_data_fields;
-use oidc4vp::mdl_response::Jarm;
 pub mod present;
 pub mod verify;
 
@@ -229,20 +227,21 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             let query = req.text().await.unwrap_or_default();
 
             //TODO: get JWE from query and decrypt to JARM
-            let params: Jarm = match serde_urlencoded::from_str(&query) {
+            let response: String = match serde_urlencoded::from_str(&query) {
                 Ok(p) => p,
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
             let url = req.url()?;
             let query = url.query().unwrap_or_default();
-            match serde_urlencoded::from_str(query) {
-                Ok(p) => p,
+
+            match verify::validate_openid4vp_mdl_response(response, id, &mut CFDBClient {ctx}).await {
+                Ok(_) => Response::empty(),
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
-            };
-
-            let vp_token = base64url::decode(&params.vp_token).unwrap();
-
-            match verify::validate_openid4vp_mdl_response(vp_token, id, &mut CFDBClient {ctx}).await {
+            }.and_then(|r| r.with_cors(&get_cors()))
+        })
+        .get_async(&format!("{}/:id/mdl_results", API_PREFIX), |mut req, ctx| async move {
+            let id = get_id!(ctx);
+            match verify::show_results(id, &mut CFDBClient {ctx}).await {
                 Ok(_) => Response::empty(),
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             }.and_then(|r| r.with_cors(&get_cors()))
@@ -254,6 +253,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             match status(id, &CFDBClient{ctx}).await {
                 Ok(Some(VPProgress::Started{..})) => Ok(Response::empty().unwrap().with_status(202)),
                 Ok(Some(VPProgress::OPState{..})) => Ok(Response::empty().unwrap().with_status(202)),
+                Ok(Some(VPProgress::InteropChecks{..})) => Ok(Response::empty().unwrap().with_status(202)),
                 Ok(Some(VPProgress::Failed(errors))) => Ok(Response::from_json(&errors).unwrap().with_status(417)),
                 Ok(Some(VPProgress::Done(vc))) => Response::from_json(&vc),
                 Ok(None) => Ok(Response::empty().unwrap().with_status(204)),

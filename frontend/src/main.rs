@@ -37,8 +37,8 @@ pub fn home() -> Html {
 fn switch(routes: &Route) -> Html {
     match routes {
         Route::Home => html! { <HOME /> },
-        Route::VerifymDL => html! { <><h1>{"Verify"}</h1> <VerifyPoll presentation = "mDL" /></> },
-        Route::VerifyAge => html! { <><h1>{"Verify"}</h1> <VerifyPoll presentation = "age_over_18" /></> },
+        Route::VerifymDL => html! { <><h1>{"Verify mDL"}</h1> <VerifyPoll presentation = "mDL" /></> },
+        Route::VerifyAge => html! { <><h1>{"Verify Age"}</h1> <VerifyPoll presentation = "age_over_18" /></> },
         Route::NotFound => html! { <Redirect<Route> to={Route::Home}/> },
     }
 }
