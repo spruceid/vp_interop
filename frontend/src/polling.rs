@@ -98,7 +98,7 @@ impl Component for VerifyPoll {
     fn create(ctx: &Context<Self>) -> Self {
         let uuid = Uuid::new_v4();
         let props = ctx.props().clone();
-        let mut params;
+        let params;
 
         if props.presentation == "age_over_18".to_string() {
             params = Params::MdlParams(MdlParams { revocation_check: false, response_mode: "direct_post.jwt".to_string(), presentation_type: "age_over_18".to_string() })
@@ -163,7 +163,7 @@ impl Component for VerifyPoll {
                     match check_params {
                         Params::CheckParams(mut c) => {
                             c.revocation_check = !c.revocation_check;
-                            (*url, *img) = gen_link_img(&self.uuid, &Params::CheckParams(c.clone()));
+                            (*url, *img) = gen_link_img(&self.uuid, &Params::CheckParams(c));
                            
                         },
                         Params::MdlParams(ref mut m) => {
