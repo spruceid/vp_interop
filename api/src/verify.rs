@@ -410,26 +410,4 @@ pub(crate) mod tests {
         let _parsed_req: RequestObject =
             ssi::jwt::decode_verify(&request_object_jwt, &parsed_verifier_key).unwrap();
     }
-
-    #[tokio::test]
-    async fn okta_test(){
-        let request_object_jwt = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsIng1YyI6WyJNRmt3RXdZSEtvWkl6ajBDQVFZSUtvWkl6ajBEQVFjRFFnQUVTNlhUanBXU01QWmxRL1B1Mm9PSDJrYjVzUjB6Nm5NZmRPc1NFbmxrNzdXWWFaeVVRMUtiRzhublFHMUovVk52Y1l5aUw3T00xSTdsUDY3WmoreE5nZz09Il19.eyJjbGllbnRfbWV0YWRhdGEiOnsiandrcyI6eyJrZXlzIjpbeyJrdHkiOiJFQyIsInVzZSI6InNpZyIsImNydiI6IlAtMjU2IiwieCI6IlM2WFRqcFdTTVBabFFfUHUyb09IMmtiNXNSMHo2bk1mZE9zU0VubGs3N1UiLCJ5IjoibUdtY2xFTlNteHZKNTBCdFNmMVRiM0dNb2ktempOU081VC11Mllfc1RZSSIsImFsZyI6IkVTMjU2In0seyJrdHkiOiJFQyIsInVzZSI6ImVuYyIsImNydiI6IlAtMjU2IiwieCI6IlJndkQtSVMtMU5nM1VuTjZlbDZWalBQTTE0dE9pRlJEYVlvLVp4MW9MRWciLCJ5IjoiT0huVkNPWGZ5WkxxNVpfZ081b2pMTmdmbndWLWk2UDdKYWd3N2ZYX3N0byIsImFsZyI6IkVDREgtRVMifV19LCJhdXRob3JpemF0aW9uX2VuY3J5cHRlZF9yZXNwb25zZV9hbGciOiJFQ0RILUVTIiwiYXV0aG9yaXphdGlvbl9lbmNyeXB0ZWRfcmVzcG9uc2VfZW5jIjoiQTI1NkdDTSIsInJlcXVpcmVfc2lnbmVkX3JlcXVlc3Rfb2JqZWN0Ijp0cnVlLCJjbGllbnRfbmFtZSI6IlByZXNlbnRhdGlvbiBUb29sIiwiY2xpZW50X3B1cnBvc2UiOiJUaGlzIGlzIGEgdGVzdGluZyB0b29sLiJ9LCJyZXNwb25zZV90eXBlIjoidnBfdG9rZW4iLCJwcmVzZW50YXRpb25fZGVmaW5pdGlvbiI6eyJpZCI6Im1kbC10ZXN0LWFsbC1kYXRhIiwiaW5wdXRfZGVzY3JpcHRvcnMiOlt7ImlkIjoib3JnLmlzby4xODAxMy41LjEubURMIiwiZm9ybWF0Ijp7Im1zb19tZG9jIjp7ImFsZyI6WyJFZERTQSIsIkVTMjU2Il19fSwiY29uc3RyYWludHMiOnsibGltaXRfZGlzY2xvc3VyZSI6InJlcXVpcmVkIiwiZmllbGRzIjpbeyJwYXRoIjpbIiRbJ29yZy5pc28uMTgwMTMuNS4xJ11bJ2ZhbWlseV9uYW1lJ10iXSwiaW50ZW50X3RvX3JldGFpbiI6ImZhbHNlIn0seyJwYXRoIjpbIiRbJ29yZy5pc28uMTgwMTMuNS4xJ11bJ2dpdmVuX25hbWUnXSJdLCJpbnRlbnRfdG9fcmV0YWluIjoiZmFsc2UifSx7InBhdGgiOlsiJFsnb3JnLmlzby4xODAxMy41LjEnXVsnYmlydGhfZGF0ZSddIl0sImludGVudF90b19yZXRhaW4iOiJmYWxzZSJ9LHsicGF0aCI6WyIkWydvcmcuaXNvLjE4MDEzLjUuMSddWydpc3N1ZV9kYXRlJ10iXSwiaW50ZW50X3RvX3JldGFpbiI6ImZhbHNlIn0seyJwYXRoIjpbIiRbJ29yZy5pc28uMTgwMTMuNS4xJ11bJ2V4cGlyeV9kYXRlJ10iXSwiaW50ZW50X3RvX3JldGFpbiI6ImZhbHNlIn0seyJwYXRoIjpbIiRbJ29yZy5pc28uMTgwMTMuNS4xJ11bJ2lzc3VpbmdfY291bnRyeSddIl0sImludGVudF90b19yZXRhaW4iOiJmYWxzZSJ9LHsicGF0aCI6WyIkWydvcmcuaXNvLjE4MDEzLjUuMSddWydpc3N1aW5nX2F1dGhvcml0eSddIl0sImludGVudF90b19yZXRhaW4iOiJmYWxzZSJ9LHsicGF0aCI6WyIkWydvcmcuaXNvLjE4MDEzLjUuMSddWydkb2N1bWVudF9udW1iZXInXSJdLCJpbnRlbnRfdG9fcmV0YWluIjoiZmFsc2UifSx7InBhdGgiOlsiJFsnb3JnLmlzby4xODAxMy41LjEnXVsncG9ydHJhaXQnXSJdLCJpbnRlbnRfdG9fcmV0YWluIjoiZmFsc2UifSx7InBhdGgiOlsiJFsnb3JnLmlzby4xODAxMy41LjEnXVsnZHJpdmluZ19wcml2aWxlZ2VzJ10iXSwiaW50ZW50X3RvX3JldGFpbiI6ImZhbHNlIn0seyJwYXRoIjpbIiRbJ29yZy5pc28uMTgwMTMuNS4xJ11bJ3VuX2Rpc3Rpbmd1aXNoaW5nX3NpZ24nXSJdLCJpbnRlbnRfdG9fcmV0YWluIjoiZmFsc2UifV19fV19LCJub25jZSI6ImM4OTU1NzI3NTczNjBlMDdkZDBlMGJhODE1NTAyYWY2IiwiY2xpZW50X2lkIjoiaEl3UmZ4ZFlKWld5WHBybWtGcXV1ZjZkQTZDT0tHeXJCZmpPekI4SVM4QSIsImNsaWVudF9pZF9zY2hlbWUiOiJ4NTA5X3Nhbl91cmkiLCJyZXNwb25zZV9tb2RlIjoiZGlyZWN0X3Bvc3Quand0IiwicmVzcG9uc2VfdXJpIjoiaHR0cHM6Ly9tZGwtdmVyaWZpZXItYXBwLnZlcmNlbC5hcHAvYXBpL3ByZXNlbnRhdGlvbl9yZXF1ZXN0L2I2ZTZmNDJjLTlkOTctNDEyMS1hOWE5LTY4N2MwOTdmNmY3NC9jYWxsYmFjayIsImlhdCI6MTY5MTY1OTE4MCwiZXhwIjoxNjkxNjU5MjQwfQ.Vt02N7yrYL0Jk6hP6t6ddY9sgEDRE2FLDso-4XuA2kTSXKMD-dIl_Epxev9WSAD6M5uF949060uJm_pil-kQUw".to_string();
-        let (header, _payload) = ssi::jws::decode_unverified(&request_object_jwt).unwrap();
-        let chain = header.x509_certificate_chain.clone();
-        println!("chain: {:#?}", chain);
-        let parsed_cert_chain = header
-            .x509_certificate_chain
-            .unwrap()
-            .first()
-            .unwrap()
-            .clone();
-        let parsed_cert_bytes = base64::decode(parsed_cert_chain).unwrap();
-        println!("parsed_cert_bytes: {:?}", parsed_cert_bytes);
-        let parsed_vk = oidc4vp::mdl_request::x509_public_key(parsed_cert_bytes).unwrap();
-        let parsed_vk_bytes = parsed_vk.to_sec1_bytes();
-        let parsed_verifier_key = ssi::jwk::p256_parse(&parsed_vk_bytes).unwrap();
-        let _parsed_req: RequestObject =
-            ssi::jwt::decode_verify(&request_object_jwt, &parsed_verifier_key).unwrap();
-        println!("request: {:?}", _parsed_req);
-    }
 }

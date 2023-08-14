@@ -30,11 +30,6 @@ enum VerifyPollState {
     },
 }
 
-// pub enum UseCase {
-//     Mdl(VerifyPoll),
-//     AgeOver18(VerifyPoll)
-// }
-
 pub struct VerifyPoll {
     state: VerifyPollState,
     uuid: Uuid,
@@ -98,13 +93,11 @@ impl Component for VerifyPoll {
     fn create(ctx: &Context<Self>) -> Self {
         let uuid = Uuid::new_v4();
         let props = ctx.props().clone();
-        let params;
-
-        if props.presentation == "age_over_18".to_string() {
-            params = Params::MdlParams(MdlParams { revocation_check: false, response_mode: "direct_post.jwt".to_string(), presentation_type: "age_over_18".to_string() })
+        let params = if props.presentation == *"age_over_18" {
+            Params::MdlParams(MdlParams { revocation_check: false, response_mode: "direct_post.jwt".to_string(), presentation_type: "age_over_18".to_string() })
         } else {
-            params = Params::MdlParams(MdlParams { revocation_check: false, response_mode: "direct_post.jwt".to_string(), presentation_type: "mDL".to_string() })
-        }
+            Params::MdlParams(MdlParams { revocation_check: false, response_mode: "direct_post.jwt".to_string(), presentation_type: "mDL".to_string() })
+        };
         
         let (url, img) = gen_link_img(&uuid, &params);
 
@@ -206,15 +199,14 @@ impl Component for VerifyPoll {
                         None
                     })
                 };
-                let revocation_check;
-                match check_params {
+                let revocation_check = match check_params {
                     Params::CheckParams(c) => {
-                        revocation_check = c.revocation_check;
+                        c.revocation_check
                     },
                     Params::MdlParams(m) => {
-                        revocation_check = m.revocation_check;
+                        m.revocation_check
                     }
-                }
+                };
                 let onclick_revocation =
                     ctx.link().callback(|_| Msg::Click(Click::RevocationCheck));
                 let params = html! {
@@ -234,7 +226,7 @@ impl Component for VerifyPoll {
                 let mobile = html! {
                     <>
                         <header>{"Please click this button to share a credential"}</header>
-                        {params.clone()}
+                        {params}
                         <a href={url.clone()}><button>{"Open authenticator app"}</button></a>
                     </>
                 };
@@ -328,6 +320,7 @@ struct MdlParams {
 }
 
 #[derive(Clone, Serialize)]
+#[allow(dead_code)]
 enum Params {
     CheckParams(CheckParams),
     MdlParams(MdlParams)
