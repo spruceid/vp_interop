@@ -1,8 +1,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use isomdl_18013_7::verify::UnattendedSessionManager;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use isomdl_18013_7::verify::UnattendedSessionManager;
 
 // #[cfg(target_arch = "wasm32")]
 pub mod cf;

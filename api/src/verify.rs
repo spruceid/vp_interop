@@ -9,16 +9,16 @@ use crate::{gen_nonce, VPProgress};
 use isomdl::definitions::helpers::NonEmptyMap;
 use isomdl::definitions::oid4vp::DeviceResponse;
 use isomdl_18013_7::verify::ReaderSession;
+use isomdl_18013_7::verify::UnattendedSessionManager;
 use josekit::jwk::alg::ec::EcKeyPair;
 use oidc4vp::mdl_request::ClientMetadata;
 use oidc4vp::{mdl_request::RequestObject, presentment::Verify, utils::Openid4vpError};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use uuid::Uuid;
 use worker::Url;
-use serde::{Serialize, Deserialize};
-use isomdl_18013_7::verify::UnattendedSessionManager;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct DemoParams {
@@ -40,10 +40,12 @@ pub async fn configured_openid4vp_mdl_request(
 
     if presentation == "age_over_18" {
         requested_fields = NonEmptyMap::try_from(age_over_mdl_request())?;
-    } else if presentation ==*"mDL"{
+    } else if presentation == *"mDL" {
         requested_fields = NonEmptyMap::try_from(minimal_mdl_request())?;
     } else {
-        return Err(CustomError::BadRequest("Unsupported presentation type".to_string()))
+        return Err(CustomError::BadRequest(
+            "Unsupported presentation type".to_string(),
+        ));
     }
 
     let response_uri = base_url.join(&format!("{}/{}/mdl_response", API_PREFIX, id))?;
@@ -69,12 +71,14 @@ pub async fn configured_openid4vp_mdl_request(
     }});
 
     // generate p256 ephemeral key and put public part into jwks
-    let ec_key_pair = josekit::jwe::ECDH_ES.generate_ec_key_pair(josekit::jwk::alg::ec::EcCurve::P256).unwrap();
+    let ec_key_pair = josekit::jwe::ECDH_ES
+        .generate_ec_key_pair(josekit::jwk::alg::ec::EcCurve::P256)
+        .unwrap();
     let client_metadata = ClientMetadata {
         authorization_encrypted_response_alg: "ECDH-ES".to_string(),
         authorization_encrypted_response_enc: "A256GCM".to_string(),
         require_signed_request_object: true,
-        jwks: Value::Object(ec_key_pair.to_jwk_public_key().into()) ,
+        jwks: Value::Object(ec_key_pair.to_jwk_public_key().into()),
         vp_formats,
     };
 
@@ -124,7 +128,10 @@ pub async fn openid4vp_mdl_request(
     //Note: e_reader_key_bytes for the request object nonce will likely be removed in future versions of 18013-7
     let e_reader_key_bytes = ec_key_pair.to_jwk_public_key().to_string();
 
-    let unattended_session_manager: UnattendedSessionManager = UnattendedSessionManager { epk: ec_key_pair.to_jwk_public_key(), esk: ec_key_pair.to_jwk_public_key() };
+    let unattended_session_manager: UnattendedSessionManager = UnattendedSessionManager {
+        epk: ec_key_pair.to_jwk_public_key(),
+        esk: ec_key_pair.to_jwk_public_key(),
+    };
     let request = unattended_session_manager.mdl_request(
         requested_fields,
         client_id,
@@ -145,7 +152,6 @@ pub async fn openid4vp_mdl_request(
             v_sec_1: None,
             v_sec_2: None,
             v_sec_3: None,
-
         }),
     )
     .await?;
@@ -157,10 +163,13 @@ pub async fn validate_openid4vp_mdl_response(
     id: Uuid,
     db: &mut dyn DBClient,
 ) -> Result<BTreeMap<String, Value>, Openid4vpError> {
-    let vp_progress = db.get_vp(id).await.unwrap();    
+    let vp_progress = db.get_vp(id).await.unwrap();
     if let Some(VPProgress::OPState(mut progress)) = vp_progress {
         let mut session_manager = progress.unattended_session_manager.clone();
-        let result = isomdl_18013_7::verify::decrypted_authorization_response(response, session_manager.clone())?;
+        let result = isomdl_18013_7::verify::decrypted_authorization_response(
+            response,
+            session_manager.clone(),
+        )?;
         let device_response: DeviceResponse = serde_cbor::from_slice(&result)?;
         let result = session_manager.handle_response(device_response);
         match result {
@@ -170,9 +179,7 @@ pub async fn validate_openid4vp_mdl_response(
                 progress.v_sec_1 = Some(true);
                 //TODO: check v_sec_2 and v_sec_3
                 //TODO; bring saved to db in line with intent_to_retain from request
-                db.put_vp(id, VPProgress::OPState(progress))
-                    .await
-                    .unwrap();
+                db.put_vp(id, VPProgress::OPState(progress)).await.unwrap();
                 Ok(r)
             }
             Err(e) => {
@@ -188,21 +195,20 @@ pub async fn validate_openid4vp_mdl_response(
     } else {
         Err(Openid4vpError::OID4VPError)
     }
-
 }
 
-pub async fn show_results(id: Uuid, db: &mut dyn DBClient,) -> Result<VPProgress, CustomError>{
+pub async fn show_results(id: Uuid, db: &mut dyn DBClient) -> Result<VPProgress, CustomError> {
     let _vp_progress = db.get_vp(id).await?;
     // if let Some(progress) = vp_progress {
     //     match progress {
     //         VPProgress::InteropChecks(ic) => {
     //             //Ok(ic)
-    //         }, 
+    //         },
     //         VPProgress::Failed(f) => {
     //             //Ok(f)
     //         },
     //         _ => {
-                
+
     //         }
 
     //     }
@@ -220,11 +226,11 @@ pub(crate) mod tests {
     use base64;
     use isomdl::issuance::Mdoc;
     use isomdl_18013_7::present::complete_mdl_response;
+    use isomdl_18013_7::present::State;
     use oidc4vp::mdl_request::ClientMetadata;
+    use serde_json::Map;
     use ssi::jwk::{Base64urlUInt, Params};
     use x509_certificate;
-    use serde_json::Map;
-    use isomdl_18013_7::present::State; 
 
     #[tokio::test]
     async fn mdl_presentation_e2e() {
@@ -280,13 +286,13 @@ pub(crate) mod tests {
         let client_id = x509_certificate.subject_common_name().unwrap();
         let response_mode = "direct_post.jwt".to_string();
 
-        let verifier_key_pair = josekit::jwe::ECDH_ES.generate_ec_key_pair(josekit::jwk::alg::ec::EcCurve::P256).unwrap();
+        let verifier_key_pair = josekit::jwe::ECDH_ES
+            .generate_ec_key_pair(josekit::jwk::alg::ec::EcCurve::P256)
+            .unwrap();
         let _esk = verifier_key_pair.to_jwk_private_key();
         let epk = verifier_key_pair.to_jwk_public_key();
 
-        let jwks = json!({
-            "keys": vec![epk]
-        });
+        let jwks = json!({ "keys": vec![epk] });
 
         let client_metadata = ClientMetadata {
             authorization_encrypted_response_alg: "ECDH-ES".to_string(),
@@ -340,33 +346,45 @@ pub(crate) mod tests {
             .unwrap()
             .clone();
         let parsed_cert_bytes = base64::decode(parsed_cert_chain).unwrap();
-        let parsed_vk: p256::elliptic_curve::PublicKey<p256::NistP256> = oidc4vp::mdl_request::x509_public_key(parsed_cert_bytes).unwrap();
+        let parsed_vk: p256::elliptic_curve::PublicKey<p256::NistP256> =
+            oidc4vp::mdl_request::x509_public_key(parsed_cert_bytes).unwrap();
         let parsed_vk_bytes = parsed_vk.to_sec1_bytes();
         let parsed_verifier_key: ssi::jwk::JWK = ssi::jwk::p256_parse(&parsed_vk_bytes).unwrap();
-        let map: Map<String, Value> = serde_json::from_value(json!(parsed_verifier_key.params.clone())).unwrap();
+        let map: Map<String, Value> =
+            serde_json::from_value(json!(parsed_verifier_key.params.clone())).unwrap();
         let verifier_jwk = josekit::jwk::Jwk::from_map(map).unwrap();
         let der = include_str!("./test/holder_testing_key.b64");
         let doc_type = mdoc.doc_type.clone();
         let documents = NonEmptyMap::new(doc_type, mdoc.into());
 
         let der_bytes = base64::decode(der).unwrap();
-        let _device_key: p256::ecdsa::SigningKey = p256::SecretKey::from_sec1_der(&der_bytes).unwrap().into();
-        let cek_pair = josekit::jwe::ECDH_ES.generate_ec_key_pair(josekit::jwk::alg::ec::EcCurve::P256).unwrap();
-        let parsed_req: RequestObject = ssi::jwt::decode_verify(&request_object_jwt, &parsed_verifier_key).unwrap();
+        let _device_key: p256::ecdsa::SigningKey =
+            p256::SecretKey::from_sec1_der(&der_bytes).unwrap().into();
+        let cek_pair = josekit::jwe::ECDH_ES
+            .generate_ec_key_pair(josekit::jwk::alg::ec::EcCurve::P256)
+            .unwrap();
+        let parsed_req: RequestObject =
+            ssi::jwt::decode_verify(&request_object_jwt, &parsed_verifier_key).unwrap();
         assert_eq!(verifier_key.to_public(), parsed_verifier_key);
 
         println!("parsed_req: {:?}", parsed_req);
 
-        let prepared_response =
-            prepare_openid4vp_mdl_response(parsed_req.clone(), documents)
-                .await
-                .unwrap();
+        let prepared_response = prepare_openid4vp_mdl_response(parsed_req.clone(), documents)
+            .await
+            .unwrap();
 
         //println!("Request Object: {:#?}", parsed_req);
-        let state: State = State{ request_object: parsed_req.clone(), verifier_epk: verifier_jwk, mdoc_epk: cek_pair.to_jwk_public_key(), mdoc_esk: cek_pair.to_jwk_private_key() };
-        
+        let state: State = State {
+            request_object: parsed_req.clone(),
+            verifier_epk: verifier_jwk,
+            mdoc_epk: cek_pair.to_jwk_public_key(),
+            mdoc_esk: cek_pair.to_jwk_private_key(),
+        };
+
         //TODO: insert signature, not the key
-        let _response = complete_mdl_response(prepared_response, state, der_bytes).await.unwrap();
+        let _response = complete_mdl_response(prepared_response, state, der_bytes)
+            .await
+            .unwrap();
         //println!("response: {:#?}", response);
         // // Then mdoc app posts response to response endpoint
         //println!("response: {:?}", response);
@@ -391,11 +409,16 @@ pub(crate) mod tests {
         let base_url = Url::parse("http://example.com").unwrap();
         let session_id = Uuid::new_v4();
         let mut db = MemoryDBClient::new();
-        let params = DemoParams{revocation_check: false, response_mode: "direct_post.jwt".to_string(),presentation_type: "mDL".to_string()};
+        let params = DemoParams {
+            revocation_check: false,
+            response_mode: "direct_post.jwt".to_string(),
+            presentation_type: "mDL".to_string(),
+        };
 
-        let request_object_jwt = configured_openid4vp_mdl_request(session_id, base_url, params, &mut db)
-            .await
-            .unwrap();
+        let request_object_jwt =
+            configured_openid4vp_mdl_request(session_id, base_url, params, &mut db)
+                .await
+                .unwrap();
         let (header, _payload) = ssi::jws::decode_unverified(&request_object_jwt).unwrap();
         let parsed_cert_chain = header
             .x509_certificate_chain

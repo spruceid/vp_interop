@@ -36,9 +36,7 @@ pub fn minimal_mdl_request() -> BTreeMap<Option<String>, Option<bool>> {
 }
 
 pub fn age_over_mdl_request() -> BTreeMap<Option<String>, Option<bool>> {
-    BTreeMap::from([
-        (Some("age_over_18".to_string()), Some(true)),
-    ])
+    BTreeMap::from([(Some("age_over_18".to_string()), Some(true))])
 }
 
 pub fn _aamva_mdl_fields() -> Vec<String> {

@@ -37,7 +37,7 @@ pub struct VerifyPoll {
 }
 
 #[derive(Clone, PartialEq, Properties)]
-pub struct Props{
+pub struct Props {
     pub presentation: String,
 }
 
@@ -94,11 +94,19 @@ impl Component for VerifyPoll {
         let uuid = Uuid::new_v4();
         let props = ctx.props().clone();
         let params = if props.presentation == *"age_over_18" {
-            Params::MdlParams(MdlParams { revocation_check: false, response_mode: "direct_post.jwt".to_string(), presentation_type: "age_over_18".to_string() })
+            Params::MdlParams(MdlParams {
+                revocation_check: false,
+                response_mode: "direct_post.jwt".to_string(),
+                presentation_type: "age_over_18".to_string(),
+            })
         } else {
-            Params::MdlParams(MdlParams { revocation_check: false, response_mode: "direct_post.jwt".to_string(), presentation_type: "mDL".to_string() })
+            Params::MdlParams(MdlParams {
+                revocation_check: false,
+                response_mode: "direct_post.jwt".to_string(),
+                presentation_type: "mDL".to_string(),
+            })
         };
-        
+
         let (url, img) = gen_link_img(&uuid, &params);
 
         Self {
@@ -157,8 +165,7 @@ impl Component for VerifyPoll {
                         Params::CheckParams(mut c) => {
                             c.revocation_check = !c.revocation_check;
                             (*url, *img) = gen_link_img(&self.uuid, &Params::CheckParams(c));
-                           
-                        },
+                        }
                         Params::MdlParams(ref mut m) => {
                             m.revocation_check = !m.revocation_check;
                             (*url, *img) = gen_link_img(&self.uuid, &Params::MdlParams(m.clone()));
@@ -200,12 +207,8 @@ impl Component for VerifyPoll {
                     })
                 };
                 let revocation_check = match check_params {
-                    Params::CheckParams(c) => {
-                        c.revocation_check
-                    },
-                    Params::MdlParams(m) => {
-                        m.revocation_check
-                    }
+                    Params::CheckParams(c) => c.revocation_check,
+                    Params::MdlParams(m) => m.revocation_check,
                 };
                 let onclick_revocation =
                     ctx.link().callback(|_| Msg::Click(Click::RevocationCheck));
@@ -323,7 +326,7 @@ struct MdlParams {
 #[allow(dead_code)]
 enum Params {
     CheckParams(CheckParams),
-    MdlParams(MdlParams)
+    MdlParams(MdlParams),
 }
 
 fn gen_link_img(uuid: &Uuid, params: &Params) -> (String, String) {
@@ -334,12 +337,12 @@ fn gen_link_img(uuid: &Uuid, params: &Params) -> (String, String) {
     match params {
         Params::CheckParams(c) => {
             request_uri.set_query(Some(&serde_urlencoded::to_string(c).unwrap()));
-        },
+        }
         Params::MdlParams(m) => {
             request_uri.set_query(Some(&serde_urlencoded::to_string(m).unwrap()));
         }
     }
-    
+
     let url = format!("mdoc-openid4vp://?request_uri={request_uri}",);
     let code = QrCode::new(url.clone()).unwrap();
     let image = DynamicImage::ImageLuma8(code.render::<Luma<u8>>().build());
