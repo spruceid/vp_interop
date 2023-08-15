@@ -13,6 +13,7 @@ use isomdl_18013_7::verify::UnattendedSessionManager;
 use josekit::jwk::alg::ec::EcKeyPair;
 use oidc4vp::mdl_request::ClientMetadata;
 use oidc4vp::{mdl_request::RequestObject, presentment::Verify, utils::Openid4vpError};
+use p256::NistP256;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
@@ -71,11 +72,9 @@ pub async fn configured_openid4vp_mdl_request(
     }});
 
     // generate p256 ephemeral key and put public part into jwks
-    let ec_key_pair = josekit::jwe::ECDH_ES
-        .generate_ec_key_pair(josekit::jwk::alg::ec::EcCurve::P256)
-        .unwrap();
+    let ec_key_pair: EcKeyPair<NistP256> = josekit::jwe::ECDH_ES.generate_ec_key_pair().unwrap();
 
-    let jwks = json!({"keys": vec![Value::Object(ec_key_pair.to_jwk_public_key().into())]});
+    let jwks = json!({ "keys": vec![Value::Object(ec_key_pair.to_jwk_public_key().into())] });
 
     let client_metadata = ClientMetadata {
         authorization_encrypted_response_alg: "ECDH-ES".to_string(),
@@ -123,7 +122,7 @@ pub async fn openid4vp_mdl_request(
     presentation_id: String,
     response_mode: String,
     client_metadata: ClientMetadata,
-    ec_key_pair: EcKeyPair,
+    ec_key_pair: EcKeyPair<NistP256>,
     db: &mut dyn DBClient,
 ) -> Result<RequestObject, Openid4vpError> {
     let nonce = gen_nonce().secret().clone();
@@ -170,19 +169,19 @@ pub async fn validate_openid4vp_mdl_response(
             response,
             session_manager.clone(),
         )?;
-        
+
         let device_response: DeviceResponse = serde_cbor::from_slice(&result)?;
         let result = session_manager.handle_response(device_response);
 
         match result {
-            Ok(r) => {
+            Ok(_r) => {
                 progress.v_data_2 = Some(true);
                 progress.v_data_3 = Some(true);
                 progress.v_sec_1 = Some(true);
                 //TODO: check v_sec_2 and v_sec_3
                 //TODO; bring saved to db in line with intent_to_retain from request
                 db.put_vp(id, VPProgress::OPState(progress)).await.unwrap();
-                let redirect_uri = format!("{}{}{}{}", API_BASE, API_PREFIX, id, "/mdl_results" );
+                let redirect_uri = format!("{}{}{}{}", API_BASE, API_PREFIX, id, "/mdl_results");
                 Ok(redirect_uri)
             }
             Err(e) => {
@@ -202,10 +201,12 @@ pub async fn validate_openid4vp_mdl_response(
 
 pub async fn show_results(id: Uuid, db: &mut dyn DBClient) -> Result<VPProgress, CustomError> {
     let vp_progress = db.get_vp(id).await?;
-    if let Some(progress) = vp_progress{
+    if let Some(progress) = vp_progress {
         Ok(progress)
     } else {
-        Err(CustomError::InternalError("Could not find state for specified id".to_string()))
+        Err(CustomError::InternalError(
+            "Could not find state for specified id".to_string(),
+        ))
     }
 }
 
@@ -220,10 +221,12 @@ pub(crate) mod tests {
     use isomdl::issuance::Mdoc;
     use isomdl_18013_7::present::complete_mdl_response;
     use isomdl_18013_7::present::State;
+    use josekit::jwe::alg::ecdh_es::EcdhEsJweDecrypter;
+    use josekit::jwe::alg::ecdh_es::EcdhEsJweEncrypter;
     use oidc4vp::mdl_request::ClientMetadata;
+    use rand::{distributions::Alphanumeric, Rng};
     use ssi::jwk::{Base64urlUInt, Params};
     use x509_certificate;
-    use rand::{distributions::Alphanumeric, Rng};
 
     #[tokio::test]
     async fn mdl_presentation_e2e() {
@@ -279,9 +282,7 @@ pub(crate) mod tests {
         let client_id = x509_certificate.subject_common_name().unwrap();
         let response_mode = "direct_post.jwt".to_string();
 
-        let verifier_key_pair = josekit::jwe::ECDH_ES
-            .generate_ec_key_pair(josekit::jwk::alg::ec::EcCurve::P256)
-            .unwrap();
+        let verifier_key_pair = josekit::jwe::ECDH_ES.generate_ec_key_pair().unwrap();
         let _esk = verifier_key_pair.to_jwk_private_key();
         let epk = verifier_key_pair.to_jwk_public_key();
 
@@ -346,22 +347,24 @@ pub(crate) mod tests {
         let der_bytes = base64::decode(der).unwrap();
         let _device_key: p256::ecdsa::SigningKey =
             p256::SecretKey::from_sec1_der(&der_bytes).unwrap().into();
-        let cek_pair = josekit::jwe::ECDH_ES
-            .generate_ec_key_pair(josekit::jwk::alg::ec::EcCurve::P256)
-            .unwrap();
+        let cek_pair: EcKeyPair<NistP256> = josekit::jwe::ECDH_ES.generate_ec_key_pair().unwrap();
         let parsed_req: RequestObject =
             ssi::jwt::decode_verify(&request_object_jwt, &parsed_verifier_key).unwrap();
         assert_eq!(verifier_key.to_public(), parsed_verifier_key);
 
         let mdoc_generated_nonce: String = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(16)
-        .map(char::from)
-        .collect();
+            .sample_iter(&Alphanumeric)
+            .take(16)
+            .map(char::from)
+            .collect();
 
-        let prepared_response = prepare_openid4vp_mdl_response(parsed_req.clone(), documents, mdoc_generated_nonce.clone())
-            .await
-            .unwrap();
+        let prepared_response = prepare_openid4vp_mdl_response(
+            parsed_req.clone(),
+            documents,
+            mdoc_generated_nonce.clone(),
+        )
+        .await
+        .unwrap();
 
         let state: State = State {
             mdoc_nonce: mdoc_generated_nonce,
@@ -379,8 +382,8 @@ pub(crate) mod tests {
 
         //Verifier decrypts the response
         let result = validate_openid4vp_mdl_response(response, session_id, &mut db)
-        .await
-        .unwrap();
+            .await
+            .unwrap();
 
         println!("result: {:?}", result);
         // //TODO; bring saved to db in line with intent_to_retain from request
@@ -423,37 +426,39 @@ pub(crate) mod tests {
 
     #[tokio::test]
     async fn encryption_round_trip() {
-    let verifier_key_pair = josekit::jwe::ECDH_ES
-        .generate_ec_key_pair(josekit::jwk::alg::ec::EcCurve::P256)
-        .unwrap();
-    let esk = verifier_key_pair.to_jwk_private_key();
-    let epk = verifier_key_pair.to_jwk_public_key();
+        let verifier_key_pair: EcKeyPair<NistP256> =
+            josekit::jwe::ECDH_ES.generate_ec_key_pair().unwrap();
+        let esk = verifier_key_pair.to_jwk_private_key();
+        let epk = verifier_key_pair.to_jwk_public_key();
 
-    let mut jwe_header = josekit::jwe::JweHeader::new();
-    jwe_header.set_token_type("JWT");
-    jwe_header.set_content_encryption("A256GCM");
-    jwe_header.set_algorithm("ECDH-ES");
-    jwe_header
-        .set_claim(
-            "apv",
-            Some(serde_json::Value::String("SKReader".to_string())),
-        )
-        .unwrap();
-    let mut jwe_payload = josekit::jwt::JwtPayload::new();
-    jwe_payload
-        .set_claim("vp_token", Some(serde_json::Value::String("vp_token".to_string())))
-        .unwrap();
+        let mut jwe_header = josekit::jwe::JweHeader::new();
+        jwe_header.set_token_type("JWT");
+        jwe_header.set_content_encryption("A256GCM");
+        jwe_header.set_algorithm("ECDH-ES");
+        jwe_header
+            .set_claim(
+                "apv",
+                Some(serde_json::Value::String("SKReader".to_string())),
+            )
+            .unwrap();
+        let mut jwe_payload = josekit::jwt::JwtPayload::new();
+        jwe_payload
+            .set_claim(
+                "vp_token",
+                Some(serde_json::Value::String("vp_token".to_string())),
+            )
+            .unwrap();
 
-    let encrypter = josekit::jwe::ECDH_ES
-        .encrypter_from_jwk(&epk)
-        .unwrap();
+        let encrypter: EcdhEsJweEncrypter<NistP256> =
+            josekit::jwe::ECDH_ES.encrypter_from_jwk(&epk).unwrap();
 
-    let jwe = josekit::jwt::encode_with_encrypter(&jwe_payload, &jwe_header, &encrypter).unwrap();
+        let jwe =
+            josekit::jwt::encode_with_encrypter(&jwe_payload, &jwe_header, &encrypter).unwrap();
 
-    let decrypter = josekit::jwe::ECDH_ES.decrypter_from_jwk(&esk).unwrap();
+        let decrypter: EcdhEsJweDecrypter<NistP256> =
+            josekit::jwe::ECDH_ES.decrypter_from_jwk(&esk).unwrap();
 
-    let (p, _h) = josekit::jwt::decode_with_decrypter(jwe, &decrypter).unwrap();
-    println!("payload: {:?}", p);
-
+        let (p, _h) = josekit::jwt::decode_with_decrypter(jwe, &decrypter).unwrap();
+        println!("payload: {:?}", p);
     }
 }
