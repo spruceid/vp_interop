@@ -226,6 +226,9 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             let id = get_id!(ctx);
             let query = req.text().await.unwrap_or_default();
 
+            let mut headers = Headers::new();
+            headers.append(ContentType::name().as_ref(), "form/urlencoded")?;
+
             //TODO: get JWE from query and decrypt to JARM
             let response: String = match serde_urlencoded::from_str(&query) {
                 Ok(p) => p,
@@ -234,8 +237,9 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             let url = req.url()?;
             let _query = url.query().unwrap_or_default();
 
+            //return redirect_uri
             match verify::validate_openid4vp_mdl_response(response, id, &mut CFDBClient {ctx}).await {
-                Ok(_) => Response::empty(),
+                Ok(redirect_uri) => Ok(Response::from_bytes(redirect_uri.as_bytes().to_vec())?.with_headers(headers)),
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             }.and_then(|r| r.with_cors(&get_cors()))
         })

@@ -5,30 +5,25 @@ use isomdl_18013_7::present::UnattendedSessionManager;
 use isomdl_18013_7::present::UnattendedSessionTranscript;
 use oidc4vp::presentment::Present;
 use oidc4vp::{mdl_request::RequestObject, utils::Openid4vpError};
-use rand::distributions::Alphanumeric;
-use rand::Rng;
 
 pub async fn prepare_openid4vp_mdl_response(
     request: RequestObject,
     documents: Documents,
+    mdoc_nonce: String,
 ) -> Result<PreparedDeviceResponse, Openid4vpError> {
     let nonce = request.nonce.clone();
     let client_id = request.client_id.clone();
     let response_uri = request.response_uri.clone();
 
     if nonce.is_some() && response_uri.is_some() {
-        let mdoc_generated_nonce: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(16)
-            .map(char::from)
-            .collect();
+        //safe unwraps
         let handover = isomdl_18013_7::present::OID4VPHandover(
-            mdoc_generated_nonce,
+            mdoc_nonce,
             client_id,
             response_uri.unwrap(),
             nonce.unwrap(),
         );
-        let session_transcript = UnattendedSessionTranscript(None, None, handover);
+        let session_transcript = UnattendedSessionTranscript(handover);
         //tag 24 the session transcript
         let unattended_session_manager =
             UnattendedSessionManager::new(session_transcript, documents).unwrap();
@@ -41,7 +36,6 @@ pub async fn prepare_openid4vp_mdl_response(
 }
 
 pub async fn complete_openid4vp_mdl_response(
-    //<S, Sig>(
     prepared_device_response: PreparedDeviceResponse,
     state: State,
     signature: Vec<u8>,

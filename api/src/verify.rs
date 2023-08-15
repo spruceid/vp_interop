@@ -16,7 +16,6 @@ use oidc4vp::{mdl_request::RequestObject, presentment::Verify, utils::Openid4vpE
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
-use std::collections::BTreeMap;
 use uuid::Uuid;
 use worker::Url;
 
@@ -28,6 +27,7 @@ pub struct DemoParams {
 }
 
 const API_PREFIX: &str = "/vp";
+const API_BASE: &str = "https://vp_interop_app-preview.spruceid.workers.dev";
 
 pub async fn configured_openid4vp_mdl_request(
     id: Uuid,
@@ -74,11 +74,14 @@ pub async fn configured_openid4vp_mdl_request(
     let ec_key_pair = josekit::jwe::ECDH_ES
         .generate_ec_key_pair(josekit::jwk::alg::ec::EcCurve::P256)
         .unwrap();
+
+    let jwks = json!({"keys": vec![Value::Object(ec_key_pair.to_jwk_public_key().into())]});
+
     let client_metadata = ClientMetadata {
         authorization_encrypted_response_alg: "ECDH-ES".to_string(),
         authorization_encrypted_response_enc: "A256GCM".to_string(),
         require_signed_request_object: true,
-        jwks: Value::Object(ec_key_pair.to_jwk_public_key().into()),
+        jwks,
         vp_formats,
     };
 
@@ -123,14 +126,11 @@ pub async fn openid4vp_mdl_request(
     ec_key_pair: EcKeyPair,
     db: &mut dyn DBClient,
 ) -> Result<RequestObject, Openid4vpError> {
-    let nonce = gen_nonce();
-    //TODO: make e_reader_key_bytes a cbor encoded CoseKey
-    //Note: e_reader_key_bytes for the request object nonce will likely be removed in future versions of 18013-7
-    let e_reader_key_bytes = ec_key_pair.to_jwk_public_key().to_string();
+    let nonce = gen_nonce().secret().clone();
 
     let unattended_session_manager: UnattendedSessionManager = UnattendedSessionManager {
         epk: ec_key_pair.to_jwk_public_key(),
-        esk: ec_key_pair.to_jwk_public_key(),
+        esk: ec_key_pair.to_jwk_private_key(),
     };
     let request = unattended_session_manager.mdl_request(
         requested_fields,
@@ -139,12 +139,12 @@ pub async fn openid4vp_mdl_request(
         presentation_id,
         response_mode,
         client_metadata,
-        e_reader_key_bytes,
+        nonce.to_owned(),
     );
     db.put_vp(
         id,
         VPProgress::OPState(OnlinePresentmentState {
-            nonce: nonce.secret().clone(),
+            nonce,
             unattended_session_manager,
             v_data_1: Some(true),
             v_data_2: None,
@@ -162,7 +162,7 @@ pub async fn validate_openid4vp_mdl_response(
     response: String,
     id: Uuid,
     db: &mut dyn DBClient,
-) -> Result<BTreeMap<String, Value>, Openid4vpError> {
+) -> Result<String, Openid4vpError> {
     let vp_progress = db.get_vp(id).await.unwrap();
     if let Some(VPProgress::OPState(mut progress)) = vp_progress {
         let mut session_manager = progress.unattended_session_manager.clone();
@@ -170,8 +170,10 @@ pub async fn validate_openid4vp_mdl_response(
             response,
             session_manager.clone(),
         )?;
+        
         let device_response: DeviceResponse = serde_cbor::from_slice(&result)?;
         let result = session_manager.handle_response(device_response);
+
         match result {
             Ok(r) => {
                 progress.v_data_2 = Some(true);
@@ -180,7 +182,8 @@ pub async fn validate_openid4vp_mdl_response(
                 //TODO: check v_sec_2 and v_sec_3
                 //TODO; bring saved to db in line with intent_to_retain from request
                 db.put_vp(id, VPProgress::OPState(progress)).await.unwrap();
-                Ok(r)
+                let redirect_uri = format!("{}{}{}{}", API_BASE, API_PREFIX, id, "/mdl_results" );
+                Ok(redirect_uri)
             }
             Err(e) => {
                 db.put_vp(
@@ -198,22 +201,12 @@ pub async fn validate_openid4vp_mdl_response(
 }
 
 pub async fn show_results(id: Uuid, db: &mut dyn DBClient) -> Result<VPProgress, CustomError> {
-    let _vp_progress = db.get_vp(id).await?;
-    // if let Some(progress) = vp_progress {
-    //     match progress {
-    //         VPProgress::InteropChecks(ic) => {
-    //             //Ok(ic)
-    //         },
-    //         VPProgress::Failed(f) => {
-    //             //Ok(f)
-    //         },
-    //         _ => {
-
-    //         }
-
-    //     }
-    // }
-    todo!()
+    let vp_progress = db.get_vp(id).await?;
+    if let Some(progress) = vp_progress{
+        Ok(progress)
+    } else {
+        Err(CustomError::InternalError("Could not find state for specified id".to_string()))
+    }
 }
 
 #[cfg(test)]
@@ -228,9 +221,9 @@ pub(crate) mod tests {
     use isomdl_18013_7::present::complete_mdl_response;
     use isomdl_18013_7::present::State;
     use oidc4vp::mdl_request::ClientMetadata;
-    use serde_json::Map;
     use ssi::jwk::{Base64urlUInt, Params};
     use x509_certificate;
+    use rand::{distributions::Alphanumeric, Rng};
 
     #[tokio::test]
     async fn mdl_presentation_e2e() {
@@ -292,18 +285,14 @@ pub(crate) mod tests {
         let _esk = verifier_key_pair.to_jwk_private_key();
         let epk = verifier_key_pair.to_jwk_public_key();
 
-        let jwks = json!({ "keys": vec![epk] });
+        let jwks = json!({ "keys": vec![epk.clone()] });
 
         let client_metadata = ClientMetadata {
             authorization_encrypted_response_alg: "ECDH-ES".to_string(),
             authorization_encrypted_response_enc: "A256GCM".to_string(),
             require_signed_request_object: true,
             jwks,
-            vp_formats: json!({"mso_mdoc": {
-                "alg": [
-                    "ES256"
-                ]
-            }}),
+            vp_formats: json!({"mso_mdoc": {}}),
         };
 
         let _client_metadata_uri = "example.com".to_string();
@@ -350,9 +339,6 @@ pub(crate) mod tests {
             oidc4vp::mdl_request::x509_public_key(parsed_cert_bytes).unwrap();
         let parsed_vk_bytes = parsed_vk.to_sec1_bytes();
         let parsed_verifier_key: ssi::jwk::JWK = ssi::jwk::p256_parse(&parsed_vk_bytes).unwrap();
-        let map: Map<String, Value> =
-            serde_json::from_value(json!(parsed_verifier_key.params.clone())).unwrap();
-        let verifier_jwk = josekit::jwk::Jwk::from_map(map).unwrap();
         let der = include_str!("./test/holder_testing_key.b64");
         let doc_type = mdoc.doc_type.clone();
         let documents = NonEmptyMap::new(doc_type, mdoc.into());
@@ -367,40 +353,38 @@ pub(crate) mod tests {
             ssi::jwt::decode_verify(&request_object_jwt, &parsed_verifier_key).unwrap();
         assert_eq!(verifier_key.to_public(), parsed_verifier_key);
 
-        println!("parsed_req: {:?}", parsed_req);
+        let mdoc_generated_nonce: String = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(16)
+        .map(char::from)
+        .collect();
 
-        let prepared_response = prepare_openid4vp_mdl_response(parsed_req.clone(), documents)
+        let prepared_response = prepare_openid4vp_mdl_response(parsed_req.clone(), documents, mdoc_generated_nonce.clone())
             .await
             .unwrap();
 
-        //println!("Request Object: {:#?}", parsed_req);
         let state: State = State {
+            mdoc_nonce: mdoc_generated_nonce,
             request_object: parsed_req.clone(),
-            verifier_epk: verifier_jwk,
+            verifier_epk: epk.clone(),
             mdoc_epk: cek_pair.to_jwk_public_key(),
             mdoc_esk: cek_pair.to_jwk_private_key(),
         };
 
         //TODO: insert signature, not the key
-        let _response = complete_mdl_response(prepared_response, state, der_bytes)
+        let response = complete_mdl_response(prepared_response, state, der_bytes)
             .await
             .unwrap();
-        //println!("response: {:#?}", response);
         // // Then mdoc app posts response to response endpoint
-        //println!("response: {:?}", response);
 
         //Verifier decrypts the response
-        // let decrypter = josekit::jwe::ECDH_ES.decrypter_from_jwk(&esk).unwrap();
-        // let (_p, _h) = josekit::jwt::decode_with_decrypter(response, &decrypter).unwrap();
+        let result = validate_openid4vp_mdl_response(response, session_id, &mut db)
+        .await
+        .unwrap();
 
-        //println!("jwe_payload: {:#?}", jwe_payload);
-        // // Verifier validates the response
-        // let vp_token = base64::decode(response.vp_token).unwrap();
+        println!("result: {:?}", result);
         // //TODO; bring saved to db in line with intent_to_retain from request
-        // let result = validate_openid4vp_mdl_response(vp_token, session_id, &mut db)
-        //     .await
-        //     .unwrap();
-        // let _saved_result = db.get_vp(session_id).await.unwrap();
+
         // println!("result: {:#?}", result);
     }
 
@@ -432,5 +416,44 @@ pub(crate) mod tests {
         let parsed_verifier_key = ssi::jwk::p256_parse(&parsed_vk_bytes).unwrap();
         let _parsed_req: RequestObject =
             ssi::jwt::decode_verify(&request_object_jwt, &parsed_verifier_key).unwrap();
+
+        let json = json!(_parsed_req);
+        println!("parsed_req: {:#}", json);
+    }
+
+    #[tokio::test]
+    async fn encryption_round_trip() {
+    let verifier_key_pair = josekit::jwe::ECDH_ES
+        .generate_ec_key_pair(josekit::jwk::alg::ec::EcCurve::P256)
+        .unwrap();
+    let esk = verifier_key_pair.to_jwk_private_key();
+    let epk = verifier_key_pair.to_jwk_public_key();
+
+    let mut jwe_header = josekit::jwe::JweHeader::new();
+    jwe_header.set_token_type("JWT");
+    jwe_header.set_content_encryption("A256GCM");
+    jwe_header.set_algorithm("ECDH-ES");
+    jwe_header
+        .set_claim(
+            "apv",
+            Some(serde_json::Value::String("SKReader".to_string())),
+        )
+        .unwrap();
+    let mut jwe_payload = josekit::jwt::JwtPayload::new();
+    jwe_payload
+        .set_claim("vp_token", Some(serde_json::Value::String("vp_token".to_string())))
+        .unwrap();
+
+    let encrypter = josekit::jwe::ECDH_ES
+        .encrypter_from_jwk(&epk)
+        .unwrap();
+
+    let jwe = josekit::jwt::encode_with_encrypter(&jwe_payload, &jwe_header, &encrypter).unwrap();
+
+    let decrypter = josekit::jwe::ECDH_ES.decrypter_from_jwk(&esk).unwrap();
+
+    let (p, _h) = josekit::jwt::decode_with_decrypter(jwe, &decrypter).unwrap();
+    println!("payload: {:?}", p);
+
     }
 }
