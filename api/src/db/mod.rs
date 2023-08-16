@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use isomdl_18013_7::verify::UnattendedSessionManager;
 use serde::{Deserialize, Serialize};
+use std::time::SystemTime;
 use uuid::Uuid;
 
 // #[cfg(target_arch = "wasm32")]
@@ -17,8 +18,11 @@ pub struct StartedInfo {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OnlinePresentmentState {
-    pub nonce: String,
     pub unattended_session_manager: UnattendedSessionManager,
+    pub verifier_id: String,
+    pub protocol: String,
+    pub transaction_id: String,
+    pub timestamp: SystemTime,
     pub v_data_1: Option<bool>,
     pub v_data_2: Option<bool>,
     pub v_data_3: Option<bool>,

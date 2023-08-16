@@ -257,7 +257,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             match status(id, &CFDBClient{ctx}).await {
                 Ok(Some(VPProgress::Started{..})) => Ok(Response::empty().unwrap().with_status(202)),
                 Ok(Some(VPProgress::OPState{..})) => Ok(Response::empty().unwrap().with_status(202)),
-                Ok(Some(VPProgress::InteropChecks{..})) => Ok(Response::empty().unwrap().with_status(202)),
+                Ok(Some(VPProgress::InteropChecks(check))) => Response::from_json(&check),
                 Ok(Some(VPProgress::Failed(errors))) => Ok(Response::from_json(&errors).unwrap().with_status(417)),
                 Ok(Some(VPProgress::Done(vc))) => Response::from_json(&vc),
                 Ok(None) => Ok(Response::empty().unwrap().with_status(204)),
