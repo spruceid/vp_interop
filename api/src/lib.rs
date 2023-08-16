@@ -116,6 +116,12 @@ impl From<serde_json::Error> for CustomError {
     }
 }
 
+impl From<josekit::JoseError> for CustomError {
+    fn from(value: josekit::JoseError) -> Self {
+        CustomError::KeyError(value.to_string())
+    }
+}
+
 impl From<CustomError> for Result<Response> {
     fn from(error: CustomError) -> Self {
         match error {

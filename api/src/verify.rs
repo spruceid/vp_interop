@@ -9,8 +9,8 @@ use crate::{gen_nonce, VPProgress};
 use anyhow::Context;
 use isomdl::definitions::helpers::NonEmptyMap;
 use isomdl::definitions::oid4vp::DeviceResponse;
-use isomdl_18013_7::verify::ReaderSession;
-use isomdl_18013_7::verify::UnattendedSessionManager;
+use isomdl180137::verify::ReaderSession;
+use isomdl180137::verify::UnattendedSessionManager;
 use josekit::jwk::alg::ec::EcKeyPair;
 use oidc4vp::mdl_request::ClientMetadata;
 use oidc4vp::{mdl_request::RequestObject, presentment::Verify, utils::Openid4vpError};
@@ -76,7 +76,7 @@ pub async fn configured_openid4vp_mdl_request(
     }});
 
     // generate p256 ephemeral key and put public part into jwks
-    let ec_key_pair: EcKeyPair<NistP256> = josekit::jwe::ECDH_ES.generate_ec_key_pair().unwrap();
+    let ec_key_pair: EcKeyPair<NistP256> = josekit::jwe::ECDH_ES.generate_ec_key_pair()?;
 
     let jwks = json!({ "keys": vec![Value::Object(ec_key_pair.to_jwk_public_key().into())] });
 
@@ -174,7 +174,7 @@ pub async fn validate_openid4vp_mdl_response(
     let vp_progress = db.get_vp(id).await?;
     if let Some(VPProgress::OPState(mut progress)) = vp_progress {
         let mut session_manager = progress.unattended_session_manager.clone();
-        let result = isomdl_18013_7::verify::decrypted_authorization_response(
+        let result = isomdl180137::verify::decrypted_authorization_response(
             response,
             session_manager.clone(),
         )?;
@@ -228,8 +228,8 @@ pub(crate) mod tests {
     use crate::verify::openid4vp_mdl_request;
     use base64;
     use isomdl::issuance::Mdoc;
-    use isomdl_18013_7::present::complete_mdl_response;
-    use isomdl_18013_7::present::State;
+    use isomdl180137::present::complete_mdl_response;
+    use isomdl180137::present::State;
     use josekit::jwe::alg::ecdh_es::EcdhEsJweDecrypter;
     use josekit::jwe::alg::ecdh_es::EcdhEsJweEncrypter;
     use oidc4vp::mdl_request::ClientMetadata;
