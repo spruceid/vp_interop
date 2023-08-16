@@ -27,8 +27,8 @@ pub fn home() -> Html {
         <>
             <div class="grid">
                 <div><button class="secondary outline" disabled=true>{"Issue"}</button></div>
-                <div><a href="/verify_mdl"><button>{"Verify mDL"}</button></a></div>
-                <div><a href="/verify_age_over_18"><button>{"Verify Age over 18"}</button></a></div>
+                <div><a href="/verify_mdl"><button>{"SCE_4VP_1: Verify mDL"}</button></a></div>
+                <div><a href="/verify_age_over_18"><button>{"SCE_4VP_2: Verify Age over 18"}</button></a></div>
             </div>
         </>
     }

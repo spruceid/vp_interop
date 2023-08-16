@@ -28,6 +28,9 @@ enum VerifyPollState {
     Failed {
         errors: serde_json::Value,
     },
+    Testing {
+        checks: serde_json::Value
+    }
 }
 
 pub struct VerifyPoll {
@@ -138,9 +141,9 @@ impl Component for VerifyPoll {
                         }
                     }
                     MsgStatus::S204 => false,
-                    MsgStatus::S200(vc) => match self.state {
+                    MsgStatus::S200(checks) => match self.state {
                         VerifyPollState::PreScan { .. } | VerifyPollState::PostScan { .. } => {
-                            self.state = VerifyPollState::Done { vc };
+                            self.state = VerifyPollState::Testing { checks };
                             true
                         }
                         _ => panic!(),
@@ -229,8 +232,8 @@ impl Component for VerifyPoll {
                 let mobile = html! {
                     <>
                         <header>{"Please click this button to share a credential"}</header>
-                        {params}
-                        <a href={url.clone()}><button>{"Open authenticator app"}</button></a>
+                        //{params}
+                        <a href={url.clone()}><button>{"invoke mDL App"}</button></a>
                     </>
                 };
                 if self.is_mobile {
@@ -297,6 +300,21 @@ impl Component for VerifyPoll {
                     </article>
                 </>
             },
+            VerifyPollState::Testing { checks } => html! {
+                <>
+                <article>
+                    <header>
+                          <a href="#close" aria-label="Close" class="close"></a>
+                          {"✅ Test Results"}
+                    </header>
+                    <pre><code>{serde_json::to_string_pretty(checks).unwrap()}</code></pre>
+                    <footer style="text-align: right">
+                      // <a href="#cancel" role="button" class="secondary">Cancel</a>
+                      <a href="/" role="button">{"Back Home"}</a>
+                    </footer>
+                </article>
+            </>
+            }
         }
     }
 }
