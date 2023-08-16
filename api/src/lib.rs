@@ -110,6 +110,12 @@ impl From<NonEmptyMapError> for CustomError {
     }
 }
 
+impl From<serde_json::Error> for CustomError {
+    fn from(value: serde_json::Error) -> Self {
+        CustomError::InternalError(value.to_string())
+    }
+}
+
 impl From<CustomError> for Result<Response> {
     fn from(error: CustomError) -> Self {
         match error {

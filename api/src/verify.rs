@@ -6,6 +6,7 @@ use crate::Base64urlUInt;
 use crate::CustomError;
 use crate::Params;
 use crate::{gen_nonce, VPProgress};
+use anyhow::Context;
 use isomdl::definitions::helpers::NonEmptyMap;
 use isomdl::definitions::oid4vp::DeviceResponse;
 use isomdl_18013_7::verify::ReaderSession;
@@ -65,7 +66,9 @@ pub async fn configured_openid4vp_mdl_request(
     let x509c = include_str!("./test/verifier_test_cert.b64");
     let x509_bytes = base64::decode(x509c)?;
     let x509_certificate = x509_certificate::X509Certificate::from_der(x509_bytes)?;
-    let client_id = x509_certificate.subject_common_name();
+    let client_id = x509_certificate
+        .subject_common_name()
+        .context("no client_id in certificate")?;
     let vp_formats = json!({"mso_mdoc": {
         "alg": [
             "ES256"
@@ -88,7 +91,7 @@ pub async fn configured_openid4vp_mdl_request(
     let payload = openid4vp_mdl_request(
         id,
         NonEmptyMap::new("org.iso.18013.5.1".to_string(), requested_fields),
-        client_id.unwrap(),
+        client_id,
         response_uri.to_string(),
         "mDL".to_string(),
         "direct_post.jwt".to_string(),
@@ -99,7 +102,9 @@ pub async fn configured_openid4vp_mdl_request(
     .await?;
 
     let header = ssi::jws::Header {
-        algorithm: verifier_key.get_algorithm().unwrap(),
+        algorithm: verifier_key
+            .get_algorithm()
+            .unwrap_or(ssi::jwk::Algorithm::ES256),
         key_id: verifier_key.key_id.clone(),
         type_: Some("JWT".to_string()),
         x509_certificate_chain: Some(vec![x509c.to_string()]),
@@ -107,7 +112,7 @@ pub async fn configured_openid4vp_mdl_request(
     };
 
     let jwt = ssi::jws::encode_sign_custom_header(
-        &serde_json::to_string(&payload).unwrap(),
+        &serde_json::to_string(&payload)?,
         &verifier_key,
         &header,
     )?;
@@ -166,7 +171,7 @@ pub async fn validate_openid4vp_mdl_response(
     id: Uuid,
     db: &mut dyn DBClient,
 ) -> Result<String, Openid4vpError> {
-    let vp_progress = db.get_vp(id).await.unwrap();
+    let vp_progress = db.get_vp(id).await?;
     if let Some(VPProgress::OPState(mut progress)) = vp_progress {
         let mut session_manager = progress.unattended_session_manager.clone();
         let result = isomdl_18013_7::verify::decrypted_authorization_response(
@@ -184,7 +189,7 @@ pub async fn validate_openid4vp_mdl_response(
                 progress.v_sec_1 = Some(true);
                 //TODO: check v_sec_2 and v_sec_3
                 //TODO; bring saved to db in line with intent_to_retain from request
-                db.put_vp(id, VPProgress::OPState(progress)).await.unwrap();
+                db.put_vp(id, VPProgress::OPState(progress)).await?;
                 let redirect_uri = format!("{}{}{}{}", API_BASE, API_PREFIX, id, "/mdl_results");
                 Ok(redirect_uri)
             }
