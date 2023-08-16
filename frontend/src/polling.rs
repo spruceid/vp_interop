@@ -5,7 +5,7 @@ use reqwasm::http::Request;
 use serde::Serialize;
 use std::io::Cursor;
 use uuid::Uuid;
-use wasm_bindgen_futures::{spawn_local, JsFuture};
+use wasm_bindgen_futures::spawn_local;
 use yew::{prelude::*, Component, Context, Html};
 
 use crate::API_BASE;
@@ -22,7 +22,7 @@ enum VerifyPollState {
     PostScan {
         _clock_handle: Interval,
     },
-    Done {
+    _Done {
         vc: serde_json::Value,
     },
     Failed {
@@ -62,10 +62,9 @@ pub enum Click {
 
 async fn fetch_status(id: Uuid) -> Msg {
     let resp = Request::get(
-        &API_BASE
+        API_BASE
             .join(&format!("/vp/{id}/status"))
-            .unwrap()
-            .to_string(),
+            .unwrap().as_ref()
     )
     .send()
     .await
@@ -194,18 +193,18 @@ impl Component for VerifyPoll {
                 ..
             } => {
                 let onclick = {
-                    let url = url.clone();
+                    let _url = url.clone();
                     ctx.link().batch_callback(move |_| {
-                        if let Some(clipboard) = window().navigator().clipboard() {
-                            let url = url.clone();
-                            spawn_local(async move {
-                                if let Err(e) =
-                                    JsFuture::from(clipboard.write_text(&url.to_owned())).await
-                                {
-                                    println!("Error: {:?}", e);
-                                }
-                            });
-                        }
+                        // if let Some(clipboard) = window().navigator().clipboard() {
+                        //     let url = url.clone();
+                        //     spawn_local(async move {
+                        //         if let Err(e) =
+                        //             JsFuture::from(clipboard.write_text(&url.to_owned())).await
+                        //         {
+                        //             println!("Error: {:?}", e);
+                        //         }
+                        //     });
+                        // }
                         None
                     })
                 };
@@ -225,7 +224,7 @@ impl Component for VerifyPoll {
                     <>
                         <header>{"Please scan this QR code with your authenticator app to share a credential"}</header>
                         <img alt="QR Code" src={img.clone()} style="display: block; margin-left: auto; margin-right: auto;"/>
-                        {params.clone()}
+                        {params}
                         <a href="#" role="button" {onclick} style="float: right">{"Copy to clipboard"}</a>
                     </>
                 };
@@ -270,7 +269,7 @@ impl Component for VerifyPoll {
                 <p aria-busy="true"></p>
             </article>
             },
-            VerifyPollState::Done { vc } => html! {
+            VerifyPollState::_Done { vc } => html! {
                 <>
                     <article>
                         <header>
