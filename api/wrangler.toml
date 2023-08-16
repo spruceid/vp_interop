@@ -21,3 +21,8 @@ workers_dev = true
 kv_namespaces = [
     { binding = "JWT_VC_INTEROP", id = "4a7d0889c6e747728b888087bb0081cd" }
 ]
+
+[env.preview.vars]
+WORKERS_RS_VERSION = "0.0.12"
+APP_BASE_URL = "https://vp_interop_api-preview.spruceid.workers.dev"
+DID = "did:web:api.vp.interop.spruceid.xyz"
