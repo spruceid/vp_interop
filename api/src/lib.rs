@@ -227,7 +227,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             let query = req.text().await.unwrap_or_default();
 
             let mut headers = Headers::new();
-            headers.append(ContentType::name().as_ref(), "form/urlencoded")?;
+            headers.append(ContentType::name().as_ref(), "application/x-www-form-urlencoded")?;
 
             //TODO: get JWE from query and decrypt to JARM
             let response: String = match serde_urlencoded::from_str(&query) {
@@ -256,7 +256,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             headers.append(CacheControl::name().as_ref(), "no-cache")?;
             match status(id, &CFDBClient{ctx}).await {
                 Ok(Some(VPProgress::Started{..})) => Ok(Response::empty().unwrap().with_status(202)),
-                Ok(Some(VPProgress::OPState{..})) => Ok(Response::empty().unwrap().with_status(202)),
+                Ok(Some(VPProgress::OPState{..})) => Ok(Response::empty().unwrap().with_status(200)),
                 Ok(Some(VPProgress::InteropChecks(check))) => Response::from_json(&check),
                 Ok(Some(VPProgress::Failed(errors))) => Ok(Response::from_json(&errors).unwrap().with_status(417)),
                 Ok(Some(VPProgress::Done(vc))) => Response::from_json(&vc),
