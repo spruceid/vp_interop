@@ -29,8 +29,8 @@ enum VerifyPollState {
         errors: serde_json::Value,
     },
     Testing {
-        checks: serde_json::Value
-    }
+        checks: serde_json::Value,
+    },
 }
 
 pub struct VerifyPoll {
@@ -61,14 +61,10 @@ pub enum Click {
 }
 
 async fn fetch_status(id: Uuid) -> Msg {
-    let resp = Request::get(
-        API_BASE
-            .join(&format!("/vp/{id}/status"))
-            .unwrap().as_ref()
-    )
-    .send()
-    .await
-    .unwrap();
+    let resp = Request::get(API_BASE.join(&format!("/vp/{id}/status")).unwrap().as_ref())
+        .send()
+        .await
+        .unwrap();
     let status = resp.status();
     let status = match status {
         202 => MsgStatus::S202,
@@ -313,7 +309,7 @@ impl Component for VerifyPoll {
                     </footer>
                 </article>
             </>
-            }
+            },
         }
     }
 }
