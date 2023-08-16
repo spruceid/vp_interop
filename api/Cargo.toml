@@ -12,9 +12,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 siop = { git = "https://github.com/spruceid/siop-rs", rev = "939156e" }
-isomdl-18013-7 = { git = "ssh://git@github.com/spruceid/isomdl-18013-7.git", rev = "1a86c99" }
+isomdl-18013-7 = { git = "ssh://git@github.com/spruceid/isomdl-18013-7.git", rev = "47c0c76" }
 #isomdl-18013-7 = {path = "../../isomdl-18013-7/lib"}
-oidc4vp = { git = "https://github.com/spruceid/oidc4vp-rs.git", rev = "903a970" }
+oidc4vp = { git = "https://github.com/spruceid/oidc4vp-rs.git", rev = "49236ae" }
 #oidc4vp = { path = "../../oidc4vp-rs"}
 isomdl = { git = "ssh://git@github.com/spruceid/isomdl.git", rev = "b2324b7" }
 # isomdl = {path = "../../isomdl"}
