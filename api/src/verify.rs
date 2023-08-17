@@ -21,6 +21,7 @@ use serde_json::Value;
 use std::time::SystemTime;
 use uuid::Uuid;
 use worker::Url;
+use log::info;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct DemoParams {
@@ -75,11 +76,11 @@ pub async fn configured_openid4vp_mdl_request(
         ]
     }});
 
-    println!("3");
+    info!("3");
     // generate p256 ephemeral key and put public part into jwks
     let ec_key_pair: EcKeyPair<NistP256> = josekit::jwe::ECDH_ES.generate_ec_key_pair()?;
 
-    println!("4");
+    info!("4");
     let jwks = json!({ "keys": vec![Value::Object(ec_key_pair.to_jwk_public_key().into())] });
 
     let client_metadata = ClientMetadata {
@@ -103,7 +104,7 @@ pub async fn configured_openid4vp_mdl_request(
     )
     .await?;
 
-    println!("5");
+    info!("5");
 
     let header = ssi::jws::Header {
         algorithm: verifier_key

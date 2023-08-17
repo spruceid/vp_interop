@@ -10,6 +10,7 @@ use thiserror::Error;
 use uuid::Uuid;
 use verify::configured_openid4vp_mdl_request;
 use worker::*;
+use log::info;
 
 mod handlers;
 use handlers::*;
@@ -219,7 +220,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             }.and_then(|r| r.with_cors(&get_cors()))
         })
         .get_async(&format!("{}/:id/mdl_request", API_PREFIX), |req, ctx| async move {
-            println!("1");
+            info!("1");
             let id = get_id!(ctx);
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/jwt")?;
@@ -230,7 +231,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
             let base_url: Url = ctx.var(APP_BASE_URL_KEY)?.to_string().parse()?;
-            println!("2");
+            info!("2");
             let result = configured_openid4vp_mdl_request(id, base_url, params, &mut CFDBClient {ctx}).await;
             println!("result: {:?}", result);
             match result {
@@ -245,7 +246,6 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/x-www-form-urlencoded")?;
 
-            //TODO: get JWE from query and decrypt to JARM
             let response: String = match serde_urlencoded::from_str(&query) {
                 Ok(p) => p,
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
@@ -272,7 +272,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             headers.append(CacheControl::name().as_ref(), "no-cache")?;
             match status(id, &CFDBClient{ctx}).await {
                 Ok(Some(VPProgress::Started{..})) => Ok(Response::empty().unwrap().with_status(202)),
-                Ok(Some(VPProgress::OPState{..})) => Ok(Response::empty().unwrap().with_status(200)),
+                Ok(Some(VPProgress::OPState{..})) => Ok(Response::empty().unwrap().with_status(204)),
                 Ok(Some(VPProgress::InteropChecks(check))) => Response::from_json(&check),
                 Ok(Some(VPProgress::Failed(errors))) => Ok(Response::from_json(&errors).unwrap().with_status(417)),
                 Ok(Some(VPProgress::Done(vc))) => Response::from_json(&vc),

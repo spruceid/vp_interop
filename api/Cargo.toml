@@ -45,6 +45,7 @@ serde_cbor = "0.11.2"
 signature = "2.1.0"
 josekit = { git = "https://github.com/cobward/josekit-rs", rev = "635c8a7" }
 base64url = "0.1.0"
+log = "0.4.20"
 
 [dev-dependencies]
 serde_path_to_error = "0.1.8"
