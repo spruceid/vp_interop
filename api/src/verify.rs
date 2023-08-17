@@ -12,6 +12,7 @@ use isomdl::definitions::oid4vp::DeviceResponse;
 use isomdl180137::verify::ReaderSession;
 use isomdl180137::verify::UnattendedSessionManager;
 use josekit::jwk::alg::ec::EcKeyPair;
+use log::info;
 use oidc4vp::mdl_request::ClientMetadata;
 use oidc4vp::{mdl_request::RequestObject, presentment::Verify, utils::Openid4vpError};
 use p256::NistP256;
@@ -21,7 +22,6 @@ use serde_json::Value;
 use std::time::SystemTime;
 use uuid::Uuid;
 use worker::Url;
-use log::info;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct DemoParams {

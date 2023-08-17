@@ -1,6 +1,7 @@
 use dids::did_resolvers;
 use headers::{CacheControl, ContentType, Header};
 use isomdl::definitions::helpers::non_empty_map::Error as NonEmptyMapError;
+use log::info;
 use mdl_data_fields::minimal_mdl_request;
 use serde_json::json;
 use ssi::jwk::Base64urlUInt;
@@ -10,7 +11,6 @@ use thiserror::Error;
 use uuid::Uuid;
 use verify::configured_openid4vp_mdl_request;
 use worker::*;
-use log::info;
 
 mod handlers;
 use handlers::*;
