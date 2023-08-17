@@ -172,6 +172,7 @@ fn get_base_url(req: &Request) -> Url {
 
 #[event(fetch)]
 pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Response> {
+    worker_logger::init_with_string("debug");
     let status_path = format!("{}/:id/status", API_PREFIX);
     let router = Router::new();
     router

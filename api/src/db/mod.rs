@@ -2,7 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use isomdl180137::verify::UnattendedSessionManager;
 use serde::{Deserialize, Serialize};
-use std::time::SystemTime;
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 // #[cfg(target_arch = "wasm32")]
@@ -22,7 +22,8 @@ pub struct OnlinePresentmentState {
     pub verifier_id: String,
     pub protocol: String,
     pub transaction_id: String,
-    pub timestamp: SystemTime,
+    #[serde(with = "time::serde::rfc3339")]
+    pub timestamp: OffsetDateTime,
     pub v_data_1: Option<bool>,
     pub v_data_2: Option<bool>,
     pub v_data_3: Option<bool>,

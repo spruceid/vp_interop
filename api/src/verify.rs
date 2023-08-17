@@ -19,7 +19,6 @@ use p256::NistP256;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
-use std::time::SystemTime;
 use uuid::Uuid;
 use worker::Url;
 
@@ -151,23 +150,21 @@ pub async fn openid4vp_mdl_request(
         client_metadata,
         nonce.to_owned(),
     );
-    db.put_vp(
-        id,
-        VPProgress::OPState(OnlinePresentmentState {
-            unattended_session_manager,
-            verifier_id: "RO-3".to_string(),
-            protocol: "OID4VP".to_string(),
-            transaction_id: id.clone().to_string(),
-            timestamp: SystemTime::now(),
-            v_data_1: Some(true),
-            v_data_2: None,
-            v_data_3: None,
-            v_sec_1: None,
-            v_sec_2: None,
-            v_sec_3: None,
-        }),
-    )
-    .await?;
+    let timestamp = time::OffsetDateTime::now_utc();
+    let progress = VPProgress::OPState(OnlinePresentmentState {
+        unattended_session_manager,
+        verifier_id: "RO-3".to_string(),
+        protocol: "OID4VP".to_string(),
+        transaction_id: id.clone().to_string(),
+        timestamp,
+        v_data_1: Some(true),
+        v_data_2: None,
+        v_data_3: None,
+        v_sec_1: None,
+        v_sec_2: None,
+        v_sec_3: None,
+    });
+    db.put_vp(id, progress).await?;
     request
 }
 

@@ -33,7 +33,7 @@ did-jwk = { version = "0.1.1", default-features = false }
 rand = "0.8.5"
 chrono = { version = "0.4.19", features = ["wasmbind"] }
 uuid = { version = "1.2.1", features = ["serde", "v4", "wasm-bindgen", "js"] }
-time = { version = "0.3.16", features = ["wasm-bindgen"] }
+time = { version = "0.3.16", features = ["wasm-bindgen", "serde"] }
 serde_urlencoded = "0.7.1"
 async-trait = "0.1.58"
 p256 = "0.13.2"
@@ -47,6 +47,7 @@ josekit = { git = "https://github.com/cobward/josekit-rs", rev = "635c8a7" }
 base64url = "0.1.0"
 log = "0.4.20"
 tracing = "0.1.37"
+worker_logger = "0.2.0"
 
 [dev-dependencies]
 serde_path_to_error = "0.1.8"
