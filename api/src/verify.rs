@@ -12,7 +12,7 @@ use isomdl::definitions::oid4vp::DeviceResponse;
 use isomdl180137::verify::ReaderSession;
 use isomdl180137::verify::UnattendedSessionManager;
 use josekit::jwk::alg::ec::EcKeyPair;
-use log::info;
+use log::debug;
 use oidc4vp::mdl_request::ClientMetadata;
 use oidc4vp::{mdl_request::RequestObject, presentment::Verify, utils::Openid4vpError};
 use p256::NistP256;
@@ -76,11 +76,11 @@ pub async fn configured_openid4vp_mdl_request(
         ]
     }});
 
-    info!("3");
+    debug!("3");
     // generate p256 ephemeral key and put public part into jwks
     let ec_key_pair: EcKeyPair<NistP256> = josekit::jwe::ECDH_ES.generate_ec_key_pair()?;
 
-    info!("4");
+    debug!(target: "mdl_request", "4");
     let jwks = json!({ "keys": vec![Value::Object(ec_key_pair.to_jwk_public_key().into())] });
 
     let client_metadata = ClientMetadata {
@@ -104,7 +104,7 @@ pub async fn configured_openid4vp_mdl_request(
     )
     .await?;
 
-    info!("5");
+    debug!("5");
 
     let header = ssi::jws::Header {
         algorithm: verifier_key

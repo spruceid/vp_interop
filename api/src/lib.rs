@@ -1,7 +1,7 @@
 use dids::did_resolvers;
 use headers::{CacheControl, ContentType, Header};
 use isomdl::definitions::helpers::non_empty_map::Error as NonEmptyMapError;
-use log::info;
+use log::{debug, info};
 use mdl_data_fields::minimal_mdl_request;
 use serde_json::json;
 use ssi::jwk::Base64urlUInt;
@@ -177,6 +177,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
     router
         .get_async(&format!("{}/:id/request", API_PREFIX), |req, ctx| async move {
             info!("1");
+            debug!("debug1");
             let id = get_id!(ctx);
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/jwt")?;
