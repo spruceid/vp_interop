@@ -1,7 +1,6 @@
 use dids::did_resolvers;
 use headers::{CacheControl, ContentType, Header};
 use isomdl::definitions::helpers::non_empty_map::Error as NonEmptyMapError;
-use log::{debug, info};
 use mdl_data_fields::minimal_mdl_request;
 use serde_json::json;
 use ssi::jwk::Base64urlUInt;
@@ -177,8 +176,6 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
     let router = Router::new();
     router
         .get_async(&format!("{}/:id/request", API_PREFIX), |req, ctx| async move {
-            info!("1");
-            debug!("debug1");
             let id = get_id!(ctx);
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/jwt")?;
@@ -223,7 +220,6 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             }.and_then(|r| r.with_cors(&get_cors()))
         })
         .get_async(&format!("{}/:id/mdl_request", API_PREFIX), |req, ctx| async move {
-            info!("1");
             let id = get_id!(ctx);
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/jwt")?;
@@ -234,9 +230,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
             let base_url: Url = ctx.var(APP_BASE_URL_KEY)?.to_string().parse()?;
-            info!("2");
             let result = configured_openid4vp_mdl_request(id, base_url, params, &mut CFDBClient {ctx}).await;
-            println!("result: {:?}", result);
             match result {
                 Ok(jwt) => Ok(Response::from_bytes(jwt.as_bytes().to_vec())?.with_headers(headers)),
                 Err(e) => e.into(),
@@ -249,15 +243,13 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/x-www-form-urlencoded")?;
 
-            let response: String = match serde_urlencoded::from_str(&query) {
+            let response: verify::Response = match serde_urlencoded::from_str(&query) {
                 Ok(p) => p,
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
-            let url = req.url()?;
-            let _query = url.query().unwrap_or_default();
 
             //return redirect_uri
-            match verify::validate_openid4vp_mdl_response(response, id, &mut CFDBClient {ctx}).await {
+            match verify::validate_openid4vp_mdl_response(response.response, id, &mut CFDBClient {ctx}).await {
                 Ok(redirect_uri) => Ok(Response::from_bytes(redirect_uri.as_bytes().to_vec())?.with_headers(headers)),
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             }.and_then(|r| r.with_cors(&get_cors()))
