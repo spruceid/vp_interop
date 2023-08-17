@@ -229,7 +229,9 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
             let base_url: Url = ctx.var(APP_BASE_URL_KEY)?.to_string().parse()?;
-            match configured_openid4vp_mdl_request(id, base_url, params, &mut CFDBClient {ctx}).await {
+            let result = configured_openid4vp_mdl_request(id, base_url, params, &mut CFDBClient {ctx}).await;
+            println!("result: {:?}", result);
+            match result { 
                 Ok(jwt) => Ok(Response::from_bytes(jwt.as_bytes().to_vec())?.with_headers(headers)),
                 Err(e) => e.into(),
             }.and_then(|r| r.with_cors(&get_cors()))
