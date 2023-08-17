@@ -75,9 +75,11 @@ pub async fn configured_openid4vp_mdl_request(
         ]
     }});
 
+    println!("3");
     // generate p256 ephemeral key and put public part into jwks
     let ec_key_pair: EcKeyPair<NistP256> = josekit::jwe::ECDH_ES.generate_ec_key_pair()?;
 
+    println!("4");
     let jwks = json!({ "keys": vec![Value::Object(ec_key_pair.to_jwk_public_key().into())] });
 
     let client_metadata = ClientMetadata {
@@ -100,6 +102,8 @@ pub async fn configured_openid4vp_mdl_request(
         db,
     )
     .await?;
+
+    println!("5");
 
     let header = ssi::jws::Header {
         algorithm: verifier_key

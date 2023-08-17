@@ -219,6 +219,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             }.and_then(|r| r.with_cors(&get_cors()))
         })
         .get_async(&format!("{}/:id/mdl_request", API_PREFIX), |req, ctx| async move {
+            println!("1");
             let id = get_id!(ctx);
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/jwt")?;
@@ -229,6 +230,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
             let base_url: Url = ctx.var(APP_BASE_URL_KEY)?.to_string().parse()?;
+            println!("2");
             let result = configured_openid4vp_mdl_request(id, base_url, params, &mut CFDBClient {ctx}).await;
             println!("result: {:?}", result);
             match result {
