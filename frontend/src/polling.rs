@@ -4,6 +4,7 @@ use qrcode::QrCode;
 use reqwasm::http::Request;
 use serde::Serialize;
 use std::io::Cursor;
+use url::Url;
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 use yew::{prelude::*, Component, Context, Html};
@@ -356,7 +357,11 @@ fn gen_link_img(uuid: &Uuid, params: &Params) -> (String, String) {
         }
     }
 
-    let url = format!("mdoc-openid4vp://?request_uri={request_uri}",);
+    let mut url: Url = Url::parse("mdoc-openid4vp://").unwrap();
+    url.query_pairs_mut()
+        .append_pair("request_uri", request_uri.as_str());
+    let url = url.to_string();
+
     let code = QrCode::new(url.clone()).unwrap();
     let image = DynamicImage::ImageLuma8(code.render::<Luma<u8>>().build());
     let mut bytes: Vec<u8> = Vec::new();
