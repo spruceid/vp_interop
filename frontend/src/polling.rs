@@ -132,20 +132,20 @@ impl Component for VerifyPoll {
                                     _clock_handle: create_clock_handle(self.uuid, ctx),
                                 };
                                 true
-                            }
+                            },
                             _ => false,
                         }
                     }
                     MsgStatus::S204 => false,
                     MsgStatus::S200(checks) => match self.state {
-                        VerifyPollState::PreScan { .. } | VerifyPollState::PostScan { .. } => {
+                        VerifyPollState::PreScan { .. } | VerifyPollState::PostScan { .. }  | VerifyPollState::Testing { .. } => {
                             self.state = VerifyPollState::Testing { checks };
                             true
-                        }
+                        },
                         _ => panic!(),
                     },
                     MsgStatus::S417(errors) => match self.state {
-                        VerifyPollState::PreScan { .. } | VerifyPollState::PostScan { .. } => {
+                        VerifyPollState::PreScan { .. } | VerifyPollState::PostScan { .. } | VerifyPollState::Testing { .. } => {
                             self.state = VerifyPollState::Failed { errors };
                             true
                         }
