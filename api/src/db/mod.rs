@@ -1,6 +1,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use isomdl180137::verify::UnattendedSessionManager;
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 // #[cfg(target_arch = "wasm32")]
@@ -9,14 +11,45 @@ pub mod cf;
 const KV_NAMESPACE: &str = "JWT_VC_INTEROP";
 const TTL: u64 = 300; // 5min
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StartedInfo {
     pub nonce: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OnlinePresentmentState {
+    pub unattended_session_manager: UnattendedSessionManager,
+    pub verifier_id: String,
+    pub protocol: String,
+    pub transaction_id: String,
+    #[serde(with = "time::serde::rfc3339")]
+    pub timestamp: OffsetDateTime,
+    pub v_data_1: Option<bool>,
+    pub v_data_2: Option<bool>,
+    pub v_data_3: Option<bool>,
+    pub v_sec_1: Option<bool>,
+    pub v_sec_2: Option<bool>,
+    pub v_sec_3: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TestProgress {
+    pub verifier_id: String,
+    pub protocol: String,
+    pub transaction_id: String,
+    pub v_data_1: Option<bool>,
+    pub v_data_2: Option<bool>,
+    pub v_data_3: Option<bool>,
+    pub v_sec_1: Option<bool>,
+    pub v_sec_2: Option<bool>,
+    pub v_sec_3: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum VPProgress {
     Started(StartedInfo),
+    OPState(OnlinePresentmentState),
+    InteropChecks(TestProgress),
     Failed(serde_json::Value),
     Done(serde_json::Value),
 }

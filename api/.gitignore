@@ -1,1 +1,5 @@
 dist
+package.json
+package-lock.json
+.wrangler
+node_modules/

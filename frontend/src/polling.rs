@@ -4,8 +4,9 @@ use qrcode::QrCode;
 use reqwasm::http::Request;
 use serde::Serialize;
 use std::io::Cursor;
+use url::Url;
 use uuid::Uuid;
-use wasm_bindgen_futures::{spawn_local, JsFuture};
+use wasm_bindgen_futures::spawn_local;
 use yew::{prelude::*, Component, Context, Html};
 
 use crate::API_BASE;
@@ -17,16 +18,19 @@ enum VerifyPollState {
         img: String,
         url: String,
         _clock_handle: Interval,
-        check_params: CheckParams,
+        check_params: Params,
     },
     PostScan {
         _clock_handle: Interval,
     },
-    Done {
+    _Done {
         vc: serde_json::Value,
     },
     Failed {
         errors: serde_json::Value,
+    },
+    Testing {
+        checks: serde_json::Value,
     },
 }
 
@@ -34,6 +38,11 @@ pub struct VerifyPoll {
     state: VerifyPollState,
     uuid: Uuid,
     is_mobile: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct Props {
+    pub presentation: String,
 }
 
 pub enum Msg {
@@ -53,15 +62,10 @@ pub enum Click {
 }
 
 async fn fetch_status(id: Uuid) -> Msg {
-    let resp = Request::get(
-        &API_BASE
-            .join(&format!("/vp/{id}/status"))
-            .unwrap()
-            .to_string(),
-    )
-    .send()
-    .await
-    .unwrap();
+    let resp = Request::get(API_BASE.join(&format!("/vp/{id}/status")).unwrap().as_ref())
+        .send()
+        .await
+        .unwrap();
     let status = resp.status();
     let status = match status {
         202 => MsgStatus::S202,
@@ -83,18 +87,32 @@ fn create_clock_handle(uuid: Uuid, ctx: &Context<VerifyPoll>) -> Interval {
 
 impl Component for VerifyPoll {
     type Message = Msg;
-    type Properties = ();
+    type Properties = Props;
 
     fn create(ctx: &Context<Self>) -> Self {
         let uuid = Uuid::new_v4();
-        let check_params = CheckParams::default();
-        let (url, img) = gen_link_img(&uuid, &check_params);
+        let props = ctx.props().clone();
+        let params = if props.presentation == *"age_over_18" {
+            Params::MdlParams(MdlParams {
+                revocation_check: false,
+                response_mode: "direct_post.jwt".to_string(),
+                presentation_type: "age_over_18".to_string(),
+            })
+        } else {
+            Params::MdlParams(MdlParams {
+                revocation_check: false,
+                response_mode: "direct_post.jwt".to_string(),
+                presentation_type: "mDL".to_string(),
+            })
+        };
+
+        let (url, img) = gen_link_img(&uuid, &params);
 
         Self {
             state: VerifyPollState::PreScan {
                 img,
                 url,
-                check_params,
+                check_params: params,
                 _clock_handle: create_clock_handle(uuid, ctx),
             },
             uuid,
@@ -119,15 +137,19 @@ impl Component for VerifyPoll {
                         }
                     }
                     MsgStatus::S204 => false,
-                    MsgStatus::S200(vc) => match self.state {
-                        VerifyPollState::PreScan { .. } | VerifyPollState::PostScan { .. } => {
-                            self.state = VerifyPollState::Done { vc };
+                    MsgStatus::S200(checks) => match self.state {
+                        VerifyPollState::PreScan { .. }
+                        | VerifyPollState::PostScan { .. }
+                        | VerifyPollState::Testing { .. } => {
+                            self.state = VerifyPollState::Testing { checks };
                             true
                         }
                         _ => panic!(),
                     },
                     MsgStatus::S417(errors) => match self.state {
-                        VerifyPollState::PreScan { .. } | VerifyPollState::PostScan { .. } => {
+                        VerifyPollState::PreScan { .. }
+                        | VerifyPollState::PostScan { .. }
+                        | VerifyPollState::Testing { .. } => {
                             self.state = VerifyPollState::Failed { errors };
                             true
                         }
@@ -142,8 +164,18 @@ impl Component for VerifyPoll {
                     ref mut check_params,
                     ..
                 } => {
-                    check_params.revocation_check = !check_params.revocation_check;
-                    (*url, *img) = gen_link_img(&self.uuid, &check_params);
+                    match check_params {
+                        Params::CheckParams(mut c) => {
+                            c.revocation_check = !c.revocation_check;
+                            (*url, *img) = gen_link_img(&self.uuid, &Params::CheckParams(c));
+                        }
+                        Params::MdlParams(ref mut m) => {
+                            m.revocation_check = !m.revocation_check;
+                            (*url, *img) = gen_link_img(&self.uuid, &Params::MdlParams(m.clone()));
+                        }
+                    }
+                    // check_params.revocation_check = !check_params.revocation_check;
+                    // (*url, *img) = gen_link_img(&self.uuid, &check_params);
                     // url = url;
                     // img = img;
                     true
@@ -162,26 +194,30 @@ impl Component for VerifyPoll {
                 ..
             } => {
                 let onclick = {
-                    let url = url.clone();
+                    let _url = url.clone();
                     ctx.link().batch_callback(move |_| {
-                        if let Some(clipboard) = window().navigator().clipboard() {
-                            let url = url.clone();
-                            spawn_local(async move {
-                                if let Err(e) =
-                                    JsFuture::from(clipboard.write_text(&url.to_owned())).await
-                                {
-                                    println!("Error: {:?}", e);
-                                }
-                            });
-                        }
+                        // if let Some(clipboard) = window().navigator().clipboard() {
+                        //     let url = url.clone();
+                        //     spawn_local(async move {
+                        //         if let Err(e) =
+                        //             JsFuture::from(clipboard.write_text(&url.to_owned())).await
+                        //         {
+                        //             println!("Error: {:?}", e);
+                        //         }
+                        //     });
+                        // }
                         None
                     })
+                };
+                let revocation_check = match check_params {
+                    Params::CheckParams(c) => c.revocation_check,
+                    Params::MdlParams(m) => m.revocation_check,
                 };
                 let onclick_revocation =
                     ctx.link().callback(|_| Msg::Click(Click::RevocationCheck));
                 let params = html! {
                     <>
-                        <input type="checkbox" id="revocation" name="revocation" value="revocation" checked={check_params.revocation_check} onclick={onclick_revocation}/>
+                        <input type="checkbox" id="revocation" name="revocation" value="revocation" checked={revocation_check} onclick={onclick_revocation}/>
                         <label for="revocation">{"Check revocation status"}</label>
                     </>
                 };
@@ -189,15 +225,15 @@ impl Component for VerifyPoll {
                     <>
                         <header>{"Please scan this QR code with your authenticator app to share a credential"}</header>
                         <img alt="QR Code" src={img.clone()} style="display: block; margin-left: auto; margin-right: auto;"/>
-                        {params.clone()}
+                        {params}
                         <a href="#" role="button" {onclick} style="float: right">{"Copy to clipboard"}</a>
                     </>
                 };
                 let mobile = html! {
                     <>
                         <header>{"Please click this button to share a credential"}</header>
-                        {params.clone()}
-                        <a href={url.clone()}><button>{"Open authenticator app"}</button></a>
+                        //{params}
+                        <a href={url.clone()}><button>{"invoke mDL App"}</button></a>
                     </>
                 };
                 if self.is_mobile {
@@ -234,7 +270,7 @@ impl Component for VerifyPoll {
                 <p aria-busy="true"></p>
             </article>
             },
-            VerifyPollState::Done { vc } => html! {
+            VerifyPollState::_Done { vc } => html! {
                 <>
                     <article>
                         <header>
@@ -264,6 +300,21 @@ impl Component for VerifyPoll {
                     </article>
                 </>
             },
+            VerifyPollState::Testing { checks } => html! {
+                <>
+                <article>
+                    <header>
+                          <a href="#close" aria-label="Close" class="close"></a>
+                          {"✅ Test Results"}
+                    </header>
+                    <pre><code>{serde_json::to_string_pretty(checks).unwrap()}</code></pre>
+                    <footer style="text-align: right">
+                      // <a href="#cancel" role="button" class="secondary">Cancel</a>
+                      <a href="/" role="button">{"Back Home"}</a>
+                    </footer>
+                </article>
+            </>
+            },
         }
     }
 }
@@ -277,17 +328,44 @@ fn is_mobile() -> bool {
     }
 }
 
-#[derive(Default, Clone, Serialize)]
+#[derive(Default, Clone, Serialize, Copy)]
 struct CheckParams {
     revocation_check: bool,
 }
 
-fn gen_link_img(uuid: &Uuid, params: &CheckParams) -> (String, String) {
+#[derive(Default, Clone, Serialize)]
+struct MdlParams {
+    revocation_check: bool,
+    response_mode: String,
+    presentation_type: String,
+}
+
+#[derive(Clone, Serialize)]
+#[allow(dead_code)]
+enum Params {
+    CheckParams(CheckParams),
+    MdlParams(MdlParams),
+}
+
+fn gen_link_img(uuid: &Uuid, params: &Params) -> (String, String) {
+    //TODO: set response mode and presentation_type in the check params
     let mut request_uri = crate::API_BASE
-        .join(&format!("vp/{}/request", uuid))
+        .join(&format!("vp/{}/mdl_request", uuid))
         .unwrap();
-    request_uri.set_query(Some(&serde_urlencoded::to_string(params).unwrap()));
-    let url = format!("openid-vc://?request_uri={request_uri}",);
+    match params {
+        Params::CheckParams(c) => {
+            request_uri.set_query(Some(&serde_urlencoded::to_string(c).unwrap()));
+        }
+        Params::MdlParams(m) => {
+            request_uri.set_query(Some(&serde_urlencoded::to_string(m).unwrap()));
+        }
+    }
+
+    let mut url: Url = Url::parse("mdoc-openid4vp://").unwrap();
+    url.query_pairs_mut()
+        .append_pair("request_uri", request_uri.as_str());
+    let url = url.to_string();
+
     let code = QrCode::new(url.clone()).unwrap();
     let image = DynamicImage::ImageLuma8(code.render::<Luma<u8>>().build());
     let mut bytes: Vec<u8> = Vec::new();

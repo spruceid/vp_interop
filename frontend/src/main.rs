@@ -4,7 +4,6 @@ use yew_router::prelude::*;
 
 mod polling;
 use polling::*;
-
 lazy_static::lazy_static! {
     static ref API_BASE: Url = Url::parse(option_env!("API_BASE").unwrap_or("https://api.vp.interop.spruceid.xyz")).unwrap();
 }
@@ -13,8 +12,10 @@ lazy_static::lazy_static! {
 enum Route {
     #[at("/")]
     Home,
-    #[at("/verify")]
-    Verify,
+    #[at("/verify_mdl")]
+    VerifymDL,
+    #[at("/verify_age_over_18")]
+    VerifyAge,
     #[not_found]
     #[at("/404")]
     NotFound,
@@ -26,7 +27,8 @@ pub fn home() -> Html {
         <>
             <div class="grid">
                 <div><button class="secondary outline" disabled=true>{"Issue"}</button></div>
-                <div><a href="/verify"><button>{"Verify"}</button></a></div>
+                <div><a href="/verify_mdl"><button>{"SCE_4VP_1: Verify mDL"}</button></a></div>
+                <div><a href="/verify_age_over_18"><button>{"SCE_4VP_2: Verify Age over 18"}</button></a></div>
             </div>
         </>
     }
@@ -35,7 +37,12 @@ pub fn home() -> Html {
 fn switch(routes: &Route) -> Html {
     match routes {
         Route::Home => html! { <HOME /> },
-        Route::Verify => html! { <><h1>{"Verify"}</h1> <VerifyPoll /></> },
+        Route::VerifymDL => {
+            html! { <><h1>{"Verify mDL"}</h1> <VerifyPoll presentation = "mDL" /></> }
+        }
+        Route::VerifyAge => {
+            html! { <><h1>{"Verify Age"}</h1> <VerifyPoll presentation = "age_over_18" /></> }
+        }
         Route::NotFound => html! { <Redirect<Route> to={Route::Home}/> },
     }
 }
@@ -47,7 +54,7 @@ fn app() -> Html {
         <nav class="container-fluid">
           <ul>
             <li><a href="/" aria-label="Back home"><img src="static/favicon.png" alt="Spruce Logo" style="object-fit: contain"/></a></li>
-            <li><a href="/" aria-label="Back home"><strong>{"JWT VC Interop"}</strong></a></li>
+            <li><a href="/" aria-label="Back home"><strong>{"SpruceID 18013-7 Interoperability Event"}</strong></a></li>
           </ul>
           <ul>
           <li>{"Spruce Systems, Incl. ("}<a href="https://spruceid.com/">{"spruceid.com"}</a>{")"}</li>

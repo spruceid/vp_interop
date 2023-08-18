@@ -1,9 +1,14 @@
 use dids::did_resolvers;
 use headers::{CacheControl, ContentType, Header};
+use isomdl::definitions::helpers::non_empty_map::Error as NonEmptyMapError;
+use mdl_data_fields::minimal_mdl_request;
 use serde_json::json;
+use ssi::jwk::Base64urlUInt;
+use ssi::jwk::Params;
 use ssi::jwk::JWK;
 use thiserror::Error;
 use uuid::Uuid;
+use verify::configured_openid4vp_mdl_request;
 use worker::*;
 
 mod handlers;
@@ -11,6 +16,9 @@ use handlers::*;
 mod db;
 use db::{cf::CFDBClient, VPProgress};
 mod dids;
+mod mdl_data_fields;
+pub mod present;
+pub mod verify;
 
 // TODO find a replacement for console_* when tracing-wasm or tracing-web are compatible.
 
@@ -26,6 +34,14 @@ const DID_JWK: &str = r#"{"kty":"EC","crv":"secp256k1","x":"nrVtymZmqiSu9lU8DmVn
 pub enum CustomError {
     #[error("{0}")]
     BadRequest(String),
+    #[error("{0}")]
+    OID4VPError(String),
+    #[error("{0}")]
+    InternalError(String),
+    #[error("{0}")]
+    NonEmptyMapError(String),
+    #[error("{0}")]
+    KeyError(String),
     // #[error("{0:?}")]
     // BadRequestRegister(RegisterError),
     // #[error("{0:?}")]
@@ -36,22 +52,92 @@ pub enum CustomError {
     // NotFound,
     // #[error("{0:?}")]
     // Redirect(String),
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
+    // #[error(transparent)]
+    // Other(#[from] anyhow::Error),
+}
+
+impl From<oidc4vp::utils::Openid4vpError> for CustomError {
+    fn from(value: oidc4vp::utils::Openid4vpError) -> Self {
+        CustomError::BadRequest(value.to_string())
+    }
+}
+
+impl From<anyhow::Error> for CustomError {
+    fn from(value: anyhow::Error) -> Self {
+        CustomError::BadRequest(value.to_string())
+    }
+}
+
+impl From<base64::DecodeError> for CustomError {
+    fn from(value: base64::DecodeError) -> Self {
+        CustomError::BadRequest(value.to_string())
+    }
+}
+
+impl From<p256::elliptic_curve::Error> for CustomError {
+    fn from(value: p256::elliptic_curve::Error) -> Self {
+        CustomError::BadRequest(value.to_string())
+    }
+}
+
+impl From<siop::openidconnect::url::ParseError> for CustomError {
+    fn from(value: siop::openidconnect::url::ParseError) -> Self {
+        CustomError::BadRequest(value.to_string())
+    }
+}
+
+impl From<x509_certificate::X509CertificateError> for CustomError {
+    fn from(value: x509_certificate::X509CertificateError) -> Self {
+        CustomError::BadRequest(value.to_string())
+    }
+}
+
+impl From<ssi::jwk::Error> for CustomError {
+    fn from(value: ssi::jwk::Error) -> Self {
+        CustomError::KeyError(value.to_string())
+    }
+}
+
+impl From<ssi::jws::Error> for CustomError {
+    fn from(value: ssi::jws::Error) -> Self {
+        CustomError::KeyError(value.to_string())
+    }
+}
+
+impl From<NonEmptyMapError> for CustomError {
+    fn from(value: NonEmptyMapError) -> Self {
+        CustomError::NonEmptyMapError(value.to_string())
+    }
+}
+
+impl From<serde_json::Error> for CustomError {
+    fn from(value: serde_json::Error) -> Self {
+        CustomError::InternalError(value.to_string())
+    }
+}
+
+impl From<josekit::JoseError> for CustomError {
+    fn from(value: josekit::JoseError) -> Self {
+        CustomError::KeyError(value.to_string())
+    }
 }
 
 impl From<CustomError> for Result<Response> {
     fn from(error: CustomError) -> Self {
         match error {
             CustomError::BadRequest(_) => Response::error(error.to_string(), 400),
+            CustomError::InternalError(_) => Response::error(error.to_string(), 500),
+            CustomError::OID4VPError(_) => Response::error(error.to_string(), 400),
+            CustomError::NonEmptyMapError(_) => Response::error(error.to_string(), 400),
+            CustomError::KeyError(_) => Response::error(error.to_string(), 400),
             // CustomError::BadRequestRegister(e) => {
             //     Response::from_json(&e).map(|r| r.with_status(400))
             // }
             // CustomError::BadRequestToken(e) => Response::from_json(&e).map(|r| r.with_status(400)),
             // CustomError::Unauthorized(_) => Response::error(&error.to_string(), 401),
             // CustomError::NotFound => Response::error(&error.to_string(), 404),
-            // CustomError::Redirect(uri) => Response::redirect(uri.parse().unwrap()),
-            CustomError::Other(_) => Response::error(error.to_string(), 500),
+            //CustomError::Redirect(uri) => Response::redirect(uri.parse().unwrap()),
+            //CustomError::Other(_) => Response::error(error.to_string(), 500),
         }
     }
 }
@@ -93,7 +179,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/jwt")?;
             let did = ctx.var(DID_KEY)?.to_string();
-            let app_base_url = ctx.var(APP_BASE_URL_KEY)?.to_string().parse().unwrap();
+            let app_base_url = ctx.var(APP_BASE_URL_KEY)?.to_string().parse()?;
             let base_url = get_base_url(&req);
             let mut jwk: JWK =
                 match serde_json::from_str(DID_JWK) {
@@ -132,12 +218,68 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 Err(e) => e.into()
             }.and_then(|r| r.with_cors(&get_cors()))
         })
+        .get_async(&format!("{}/:id/mdl_request", API_PREFIX), |req, ctx| async move {
+            let id = get_id!(ctx);
+            let mut headers = Headers::new();
+            headers.append(ContentType::name().as_ref(), "application/jwt")?;
+            let url = req.url()?;
+            let query = url.query().unwrap_or_default();
+            let params = match serde_urlencoded::from_str(query) {
+                Ok(p) => p,
+                Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
+            };
+            let base_url: Url = ctx.var(APP_BASE_URL_KEY)?.to_string().parse()?;
+            let result = configured_openid4vp_mdl_request(id, base_url, params, &mut CFDBClient {ctx}).await;
+            match result {
+                Ok(jwt) => Ok(Response::from_bytes(jwt.as_bytes().to_vec())?.with_headers(headers)),
+                Err(e) => e.into(),
+            }.and_then(|r| r.with_cors(&get_cors()))
+        })
+        .post_async(&format!("{}/:id/mdl_response", API_PREFIX), |mut req, ctx| async move {
+            let id = get_id!(ctx);
+            let query = req.form_data().await;
+            match query {
+                Ok(q) => {
+                    let entry = q.get("response");
+                    if let Some(e) = entry {
+                        let jwe = match e {
+                            FormEntry::Field(s) => {
+                                s
+                            },
+                            FormEntry::File(_f) => {
+                                return Err(Error::BadEncoding)
+                            }
+                        };
+                        let mut headers = Headers::new();
+                        headers.append(ContentType::name().as_ref(), "application/x-www-form-urlencoded")?;
+                        match verify::validate_openid4vp_mdl_response(jwe, id, &mut CFDBClient {ctx}).await {
+                            Ok(redirect_uri) => Ok(Response::from_bytes(redirect_uri.as_bytes().to_vec())?.with_headers(headers)),
+                            Err(e) => return CustomError::InternalError(e.to_string()).into(),
+                        }.and_then(|r| r.with_cors(&get_cors()))
+                    } else {
+                        Err(Error::BadEncoding)
+                    }
+                },
+                Err(_e) => {
+                    Err(Error::BodyUsed)
+                }
+            }
+        })
+        .get_async(&format!("{}/:id/mdl_results", API_PREFIX), |_req, ctx| async move {
+            let id = get_id!(ctx);
+            match verify::show_results(id, &mut CFDBClient {ctx}).await {
+                Ok(_) => Response::empty(),
+                Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
+            }.and_then(|r| r.with_cors(&get_cors()))
+        })
         .get_async(&status_path, |mut _req, ctx| async move {
             let id = get_id!(ctx);
             let mut headers = Headers::new();
             headers.append(CacheControl::name().as_ref(), "no-cache")?;
             match status(id, &CFDBClient{ctx}).await {
                 Ok(Some(VPProgress::Started{..})) => Ok(Response::empty().unwrap().with_status(202)),
+                Ok(Some(VPProgress::OPState(state))) => Ok(Response::from_json(&state).unwrap().with_status(202)),
+                Ok(Some(VPProgress::InteropChecks(check))) => Ok(Response::from_json(&check).unwrap().with_status(200)),
                 Ok(Some(VPProgress::Failed(errors))) => Ok(Response::from_json(&errors).unwrap().with_status(417)),
                 Ok(Some(VPProgress::Done(vc))) => Response::from_json(&vc),
                 Ok(None) => Ok(Response::empty().unwrap().with_status(204)),
@@ -191,6 +333,10 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 Ok(Response::from_json(&vc).unwrap()).and_then(|r| r.with_cors(&get_cors()))
             },
         )
+        .get_async("/check" , |_req, _ctx| async move {
+            println!("here!");
+            Response::empty()
+        })
         .run(req, env)
         .await
 }

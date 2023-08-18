@@ -19,6 +19,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: Swatinem/rust-cache@v2
+    - uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
     - name: Build
       run: cargo build
     - name: Test
@@ -38,6 +41,9 @@ jobs:
       with:
         targets: "wasm32-unknown-unknown"
     - uses: Swatinem/rust-cache@v2
+    - uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
     - name: Build
       run: cargo build
     - name: Fmt
