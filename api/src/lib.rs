@@ -278,8 +278,8 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             headers.append(CacheControl::name().as_ref(), "no-cache")?;
             match status(id, &CFDBClient{ctx}).await {
                 Ok(Some(VPProgress::Started{..})) => Ok(Response::empty().unwrap().with_status(202)),
-                Ok(Some(VPProgress::OPState{..})) => Ok(Response::empty().unwrap().with_status(204)),
-                Ok(Some(VPProgress::InteropChecks(check))) => Response::from_json(&check),
+                Ok(Some(VPProgress::OPState(state))) => Ok(Response::from_json(&state).unwrap().with_status(202)),
+                Ok(Some(VPProgress::InteropChecks(check))) => Ok(Response::from_json(&check).unwrap().with_status(200)),
                 Ok(Some(VPProgress::Failed(errors))) => Ok(Response::from_json(&errors).unwrap().with_status(417)),
                 Ok(Some(VPProgress::Done(vc))) => Response::from_json(&vc),
                 Ok(None) => Ok(Response::empty().unwrap().with_status(204)),

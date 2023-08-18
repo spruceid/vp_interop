@@ -1,5 +1,6 @@
 use crate::db::DBClient;
 use crate::db::OnlinePresentmentState;
+use crate::db::TestProgress;
 use crate::mdl_data_fields::age_over_mdl_request;
 use crate::minimal_mdl_request;
 use crate::Base64urlUInt;
@@ -174,7 +175,7 @@ pub async fn validate_openid4vp_mdl_response(
     db: &mut dyn DBClient,
 ) -> Result<String, Openid4vpError> {
     let vp_progress = db.get_vp(id).await?;
-    if let Some(VPProgress::OPState(mut progress)) = vp_progress {
+    if let Some(VPProgress::OPState(progress)) = vp_progress {
         let mut session_manager = progress.unattended_session_manager.clone();
 
         let result = isomdl180137::verify::decrypted_authorization_response(
@@ -187,12 +188,21 @@ pub async fn validate_openid4vp_mdl_response(
 
         match result {
             Ok(_r) => {
-                progress.v_data_2 = Some(true);
-                progress.v_data_3 = Some(true);
-                progress.v_sec_1 = Some(true);
+                let test_checks = TestProgress {
+                    verifier_id: progress.verifier_id,
+                    protocol: progress.protocol,
+                    transaction_id: progress.transaction_id,
+                    v_data_1: progress.v_data_1,
+                    v_data_2: Some(true),
+                    v_data_3: Some(true),
+                    v_sec_1: Some(true),
+                    v_sec_2: None,
+                    v_sec_3: None,
+                };
                 //TODO: check v_sec_2 and v_sec_3
                 //TODO; bring saved to db in line with intent_to_retain from request
-                db.put_vp(id, VPProgress::OPState(progress)).await?;
+                db.put_vp(id, VPProgress::InteropChecks(test_checks))
+                    .await?;
                 let redirect_uri = format!("{}{}{}{}", API_BASE, API_PREFIX, id, "/mdl_results");
                 Ok(redirect_uri)
             }
@@ -342,9 +352,7 @@ pub(crate) mod tests {
         )
         .unwrap();
 
-        let req_jwt = "eyJhbGciOiJFUzI1NiIsIng1YyI6WyJNSUlDdHpDQ0FsMmdBd0lCQWdJSkFJSVpXUThCRFBrTE1Bb0dDQ3FHU000OUJBTUNNR1l4Q3pBSkJnTlZCQVlUQWxWVE1RNHdEQVlEVlFRSURBVlZVeTFEUVRFTU1Bb0dBMVVFQ2d3RFJFMVdNVGt3TndZRFZRUUREREJEWVd4cFptOXlibWxoSUVSTlZpQlNiMjkwSUVOQklDMGdTVk5QSUVKeWFYTmlZVzVsSUZSbGMzUWdSWFpsYm5Rd0hoY05Nak13TmpBeE1URXlPRE16V2hjTk1qUXdOVE14TVRFeU9ETXpXakJiTVFzd0NRWURWUVFHRXdKVlV6RU9NQXdHQTFVRUNBd0ZWVk10UTBFeEREQUtCZ05WQkFvTUEwUk5WakV1TUN3R0ExVUVBd3dsVkVWVFZFbE9SeUJEUlZKVVNVWkpRMEZVUlNCUFNVUTBWbEFnTFNCV1pYSnBabWxsY2pCWk1CTUdCeXFHU000OUFnRUdDQ3FHU000OUF3RUhBMElBQk82SWVJck5PSFlLSjBQK0ttSTNMaUNLZHVETGxvS0h1R1U0ZHAvbHU5Mmg5QkdKUWx0blNxOWFJK3I3WnpaQlh3bVc5S0lXdjB4Y0VjeUd6d2dBaW1hamdmNHdnZnN3SFFZRFZSME9CQllFRkhhRCtETzM1T0dlekR5SGhSOFE3T2NONGxBZE1COEdBMVVkSXdRWU1CYUFGS2R0QkZCODcrVGJUOEdZelRrRkp1N29rYWZtTURRR0NXQ0dTQUdHK0VJQkRRUW5GaVZVUlZOVVNVNUhJRU5GVWxSSlJrbERRVlJGSUU5SlJEUldVQ0F0SUZabGNtbG1hV1Z5TUE0R0ExVWREd0VCL3dRRUF3SUhnREFWQmdOVkhTVUJBZjhFQ3pBSkJnY29nWXhkQlFFQ01CSUdBMVVkRXdFQi93UUlNQVlCQWY4Q0FRQXdLQVlEVlIwZkJDRXdIekFkb0J1Z0dZWVhhSFIwY0hNNkx5OWxlR0Z0Y0d4bExtTnZiUzl0Wkd3d0hnWURWUjBTQkJjd0ZZRVRaWGhoYlhCc1pVQmxlR0Z0Y0d4bExtTnZiVEFLQmdncWhrak9QUVFEQWdOSUFEQkZBaUJ5ZXdWb2VCeU9sS2Z4VURrOFJHQkR3THJRTWU3UnREZ3F3Um1YUEZTc1RRSWhBSkNKL0R0TU91Y2c3dkluVGk1K3hLUkdTRHl2NmNSQ1pJcTQ1dC9UZ2tOQSJdLCJ0eXAiOiJKV1QifQ.eyJhdWQiOiJodHRwczovL3NlbGYtaXNzdWVkLm1lL3YyIiwicmVzcG9uc2VfdHlwZSI6InZwX3Rva2VuIiwiY2xpZW50X2lkIjoiVEVTVElORyBDRVJUSUZJQ0FURSBPSUQ0VlAgLSBWZXJpZmllciIsImNsaWVudF9pZF9zY2hlbWUiOiJ4NTA5X3Nhbl91cmkiLCJyZXNwb25zZV91cmkiOiJodHRwczovL3ZwX2ludGVyb3BfYXBpLXByZXZpZXcuc3BydWNlaWQud29ya2Vycy5kZXYvdnAvYjEwY2QxYzUtZTM4MC00OGNjLWE4YTItMDZlZmY3OTc4YmQwL21kbF9yZXNwb25zZSIsInByZXNlbnRhdGlvbl9kZWZpbml0aW9uIjp7ImlkIjoibURMIiwiaW5wdXRfZGVzY3JpcHRvcnMiOlt7ImlkIjoib3JnLmlzby4xODAxMy41LjEubURMICIsImZvcm1hdCI6eyJtc29fbWRvYyI6eyJhbGciOlsiRVMyNTYiXX19LCJjb25zdHJhaW50cyI6eyJmaWVsZHMiOlt7InBhdGgiOlsiJFsnb3JnLmlzby4xODAxMy41LjEnXVsnYWdlX292ZXJfMTgnXSJdLCJpbnRlbnRfdG9fcmV0YWluIjp0cnVlfV0sImxpbWl0X2Rpc2Nsb3N1cmUiOiJyZXF1aXJlZCJ9fV19LCJjbGllbnRfbWV0YWRhdGEiOnsiYXV0aG9yaXphdGlvbl9lbmNyeXB0ZWRfcmVzcG9uc2VfYWxnIjoiRUNESC1FUyIsImF1dGhvcml6YXRpb25fZW5jcnlwdGVkX3Jlc3BvbnNlX2VuYyI6IkEyNTZHQ00iLCJyZXF1aXJlX3NpZ25lZF9yZXF1ZXN0X29iamVjdCI6dHJ1ZSwiandrcyI6eyJrZXlzIjpbeyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6Im41ZU51NGVjWlFDcHdLX2RwNVlNcUE1YnJDWnJsZzhIVWhkUGU3QUktZDgiLCJ5IjoiRzB4bHRxZXZ1SGNaanBYdGl3N1JjVDdjSzBCNTNuV2RYd1YzMXJBcy1GOCJ9XX0sInZwX2Zvcm1hdHMiOnsibXNvX21kb2MiOnsiYWxnIjpbIkVTMjU2Il19fX0sInJlc3BvbnNlX21vZGUiOiJkaXJlY3RfcG9zdC5qd3QiLCJub25jZSI6IlhPZGU1MFZSTm9IOFZMWlYifQ.TB8ZbQDsQTiWW9dMCLZ0701ZgN-BBmOPdEatoS51TszP09zpQl9ohgctbpNuAOukOZZtRp1Y3zK-44gtmMnhCg".to_string();
-        //mdoc app decodes the request
-        let (header, _payload) = ssi::jws::decode_unverified(&req_jwt).unwrap();
+        let (header, _payload) = ssi::jws::decode_unverified(&request_object_jwt).unwrap();
         let parsed_cert_chain = header
             .x509_certificate_chain
             .unwrap()
@@ -484,7 +492,7 @@ pub(crate) mod tests {
     async fn respond() {
         let test_mdoc = include_bytes!("./test/test_mdoc.cbor");
         let mdoc: Mdoc = serde_cbor::from_slice(test_mdoc).unwrap();
-        let req_jwt = "eyJhbGciOiJFUzI1NiIsIng1YyI6WyJNSUlDdHpDQ0FsMmdBd0lCQWdJSkFJSVpXUThCRFBrTE1Bb0dDQ3FHU000OUJBTUNNR1l4Q3pBSkJnTlZCQVlUQWxWVE1RNHdEQVlEVlFRSURBVlZVeTFEUVRFTU1Bb0dBMVVFQ2d3RFJFMVdNVGt3TndZRFZRUUREREJEWVd4cFptOXlibWxoSUVSTlZpQlNiMjkwSUVOQklDMGdTVk5QSUVKeWFYTmlZVzVsSUZSbGMzUWdSWFpsYm5Rd0hoY05Nak13TmpBeE1URXlPRE16V2hjTk1qUXdOVE14TVRFeU9ETXpXakJiTVFzd0NRWURWUVFHRXdKVlV6RU9NQXdHQTFVRUNBd0ZWVk10UTBFeEREQUtCZ05WQkFvTUEwUk5WakV1TUN3R0ExVUVBd3dsVkVWVFZFbE9SeUJEUlZKVVNVWkpRMEZVUlNCUFNVUTBWbEFnTFNCV1pYSnBabWxsY2pCWk1CTUdCeXFHU000OUFnRUdDQ3FHU000OUF3RUhBMElBQk82SWVJck5PSFlLSjBQK0ttSTNMaUNLZHVETGxvS0h1R1U0ZHAvbHU5Mmg5QkdKUWx0blNxOWFJK3I3WnpaQlh3bVc5S0lXdjB4Y0VjeUd6d2dBaW1hamdmNHdnZnN3SFFZRFZSME9CQllFRkhhRCtETzM1T0dlekR5SGhSOFE3T2NONGxBZE1COEdBMVVkSXdRWU1CYUFGS2R0QkZCODcrVGJUOEdZelRrRkp1N29rYWZtTURRR0NXQ0dTQUdHK0VJQkRRUW5GaVZVUlZOVVNVNUhJRU5GVWxSSlJrbERRVlJGSUU5SlJEUldVQ0F0SUZabGNtbG1hV1Z5TUE0R0ExVWREd0VCL3dRRUF3SUhnREFWQmdOVkhTVUJBZjhFQ3pBSkJnY29nWXhkQlFFQ01CSUdBMVVkRXdFQi93UUlNQVlCQWY4Q0FRQXdLQVlEVlIwZkJDRXdIekFkb0J1Z0dZWVhhSFIwY0hNNkx5OWxlR0Z0Y0d4bExtTnZiUzl0Wkd3d0hnWURWUjBTQkJjd0ZZRVRaWGhoYlhCc1pVQmxlR0Z0Y0d4bExtTnZiVEFLQmdncWhrak9QUVFEQWdOSUFEQkZBaUJ5ZXdWb2VCeU9sS2Z4VURrOFJHQkR3THJRTWU3UnREZ3F3Um1YUEZTc1RRSWhBSkNKL0R0TU91Y2c3dkluVGk1K3hLUkdTRHl2NmNSQ1pJcTQ1dC9UZ2tOQSJdLCJ0eXAiOiJKV1QifQ.eyJhdWQiOiJodHRwczovL3NlbGYtaXNzdWVkLm1lL3YyIiwicmVzcG9uc2VfdHlwZSI6InZwX3Rva2VuIiwiY2xpZW50X2lkIjoiVEVTVElORyBDRVJUSUZJQ0FURSBPSUQ0VlAgLSBWZXJpZmllciIsImNsaWVudF9pZF9zY2hlbWUiOiJ4NTA5X3Nhbl91cmkiLCJyZXNwb25zZV91cmkiOiJodHRwczovL2FwcC52cC5pbnRlcm9wLnNwcnVjZWlkLnh5ei92cC8yYWUxZmE5YS02M2RkLTRlMGQtYjcxNC00N2ZjMTFmYWE5ZTEvbWRsX3Jlc3BvbnNlIiwicHJlc2VudGF0aW9uX2RlZmluaXRpb24iOnsiaWQiOiJtREwiLCJpbnB1dF9kZXNjcmlwdG9ycyI6W3siaWQiOiJvcmcuaXNvLjE4MDEzLjUuMS5tREwgIiwiZm9ybWF0Ijp7Im1zb19tZG9jIjp7ImFsZyI6WyJFUzI1NiJdfX0sImNvbnN0cmFpbnRzIjp7ImZpZWxkcyI6W3sicGF0aCI6WyIkWydvcmcuaXNvLjE4MDEzLjUuMSddWydhZ2Vfb3Zlcl8xOCddIl0sImludGVudF90b19yZXRhaW4iOnRydWV9XSwibGltaXRfZGlzY2xvc3VyZSI6InJlcXVpcmVkIn19XX0sImNsaWVudF9tZXRhZGF0YSI6eyJhdXRob3JpemF0aW9uX2VuY3J5cHRlZF9yZXNwb25zZV9hbGciOiJFQ0RILUVTIiwiYXV0aG9yaXphdGlvbl9lbmNyeXB0ZWRfcmVzcG9uc2VfZW5jIjoiQTI1NkdDTSIsInJlcXVpcmVfc2lnbmVkX3JlcXVlc3Rfb2JqZWN0Ijp0cnVlLCJqd2tzIjp7ImtleXMiOlt7Imt0eSI6IkVDIiwiY3J2IjoiUC0yNTYiLCJ4IjoiUHNiTGNxcGJmQUhLcVR4bTZld04tTEg3eU56TEs5MjJIazFuX3NKM1BjRSIsInkiOiJNQ09PbUtHRTZIT0Y3RTZUWmtiSi1vVmxfMjhzSXBNd1p5b29vNGlHaVdJIn1dfSwidnBfZm9ybWF0cyI6eyJtc29fbWRvYyI6eyJhbGciOlsiRVMyNTYiXX19fSwicmVzcG9uc2VfbW9kZSI6ImRpcmVjdF9wb3N0Lmp3dCIsIm5vbmNlIjoiVGdSbkxTcEh0MktwYklreiJ9.dzPTx2b7ogyZMvLTvp2104icbQS6mjuKTiCmwXI1xAi-XIoSpreiT6nJ3wn208TGjimApumQ3nuN38_IG25J5Q".to_string();
+        let req_jwt = "eyJhbGciOiJFUzI1NiIsIng1YyI6WyJNSUlDdHpDQ0FsMmdBd0lCQWdJSkFJSVpXUThCRFBrTE1Bb0dDQ3FHU000OUJBTUNNR1l4Q3pBSkJnTlZCQVlUQWxWVE1RNHdEQVlEVlFRSURBVlZVeTFEUVRFTU1Bb0dBMVVFQ2d3RFJFMVdNVGt3TndZRFZRUUREREJEWVd4cFptOXlibWxoSUVSTlZpQlNiMjkwSUVOQklDMGdTVk5QSUVKeWFYTmlZVzVsSUZSbGMzUWdSWFpsYm5Rd0hoY05Nak13TmpBeE1URXlPRE16V2hjTk1qUXdOVE14TVRFeU9ETXpXakJiTVFzd0NRWURWUVFHRXdKVlV6RU9NQXdHQTFVRUNBd0ZWVk10UTBFeEREQUtCZ05WQkFvTUEwUk5WakV1TUN3R0ExVUVBd3dsVkVWVFZFbE9SeUJEUlZKVVNVWkpRMEZVUlNCUFNVUTBWbEFnTFNCV1pYSnBabWxsY2pCWk1CTUdCeXFHU000OUFnRUdDQ3FHU000OUF3RUhBMElBQk82SWVJck5PSFlLSjBQK0ttSTNMaUNLZHVETGxvS0h1R1U0ZHAvbHU5Mmg5QkdKUWx0blNxOWFJK3I3WnpaQlh3bVc5S0lXdjB4Y0VjeUd6d2dBaW1hamdmNHdnZnN3SFFZRFZSME9CQllFRkhhRCtETzM1T0dlekR5SGhSOFE3T2NONGxBZE1COEdBMVVkSXdRWU1CYUFGS2R0QkZCODcrVGJUOEdZelRrRkp1N29rYWZtTURRR0NXQ0dTQUdHK0VJQkRRUW5GaVZVUlZOVVNVNUhJRU5GVWxSSlJrbERRVlJGSUU5SlJEUldVQ0F0SUZabGNtbG1hV1Z5TUE0R0ExVWREd0VCL3dRRUF3SUhnREFWQmdOVkhTVUJBZjhFQ3pBSkJnY29nWXhkQlFFQ01CSUdBMVVkRXdFQi93UUlNQVlCQWY4Q0FRQXdLQVlEVlIwZkJDRXdIekFkb0J1Z0dZWVhhSFIwY0hNNkx5OWxlR0Z0Y0d4bExtTnZiUzl0Wkd3d0hnWURWUjBTQkJjd0ZZRVRaWGhoYlhCc1pVQmxlR0Z0Y0d4bExtTnZiVEFLQmdncWhrak9QUVFEQWdOSUFEQkZBaUJ5ZXdWb2VCeU9sS2Z4VURrOFJHQkR3THJRTWU3UnREZ3F3Um1YUEZTc1RRSWhBSkNKL0R0TU91Y2c3dkluVGk1K3hLUkdTRHl2NmNSQ1pJcTQ1dC9UZ2tOQSJdLCJ0eXAiOiJKV1QifQ.eyJhdWQiOiJodHRwczovL3NlbGYtaXNzdWVkLm1lL3YyIiwicmVzcG9uc2VfdHlwZSI6InZwX3Rva2VuIiwiY2xpZW50X2lkIjoiVEVTVElORyBDRVJUSUZJQ0FURSBPSUQ0VlAgLSBWZXJpZmllciIsImNsaWVudF9pZF9zY2hlbWUiOiJ4NTA5X3Nhbl91cmkiLCJyZXNwb25zZV91cmkiOiJodHRwczovL2FwcC52cC5pbnRlcm9wLnNwcnVjZWlkLnh5ei92cC9mMTMxNzBkMS02NTJmLTQ4ZjgtOTI0ZC1mOGM2ZTAzMzE1YmMvbWRsX3Jlc3BvbnNlIiwicHJlc2VudGF0aW9uX2RlZmluaXRpb24iOnsiaWQiOiJtREwiLCJpbnB1dF9kZXNjcmlwdG9ycyI6W3siaWQiOiJvcmcuaXNvLjE4MDEzLjUuMS5tREwgIiwiZm9ybWF0Ijp7Im1zb19tZG9jIjp7ImFsZyI6WyJFUzI1NiJdfX0sImNvbnN0cmFpbnRzIjp7ImZpZWxkcyI6W3sicGF0aCI6WyIkWydvcmcuaXNvLjE4MDEzLjUuMSddWydhZ2Vfb3Zlcl8xOCddIl0sImludGVudF90b19yZXRhaW4iOmZhbHNlfV0sImxpbWl0X2Rpc2Nsb3N1cmUiOiJyZXF1aXJlZCJ9fV19LCJjbGllbnRfbWV0YWRhdGEiOnsiYXV0aG9yaXphdGlvbl9lbmNyeXB0ZWRfcmVzcG9uc2VfYWxnIjoiRUNESC1FUyIsImF1dGhvcml6YXRpb25fZW5jcnlwdGVkX3Jlc3BvbnNlX2VuYyI6IkEyNTZHQ00iLCJyZXF1aXJlX3NpZ25lZF9yZXF1ZXN0X29iamVjdCI6dHJ1ZSwiandrcyI6eyJrZXlzIjpbeyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IkFYcnNjZjR1cGJLZlBoc253QTV5NVBlZ1BVMFI0aUxIVUNTbm5mUVAtUFUiLCJ5IjoieFpRMFRQS0N5OTl0UzYxN3ZLak9ma1I0VXhtLU9BT3k0YkZiM1kxYlhmTSJ9XX0sInZwX2Zvcm1hdHMiOnsibXNvX21kb2MiOnsiYWxnIjpbIkVTMjU2Il19fX0sInJlc3BvbnNlX21vZGUiOiJkaXJlY3RfcG9zdC5qd3QiLCJub25jZSI6InhxS05WdnFxT3NFZ0J2Z0QifQ.L6vqrXpY1qW4ni2HMU7KAqSBeFgpl4cptXjFfxCdonFZnjdzLJWGmpgePPwtAoHYpeZedZiOFIir-AMHSWVHbw".to_string();
 
         //mdoc app decodes the request
         let (header, _payload) = ssi::jws::decode_unverified(&req_jwt).unwrap();

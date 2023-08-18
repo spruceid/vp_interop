@@ -34,6 +34,9 @@ pub struct OnlinePresentmentState {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TestProgress {
+    pub verifier_id: String,
+    pub protocol: String,
+    pub transaction_id: String,
     pub v_data_1: Option<bool>,
     pub v_data_2: Option<bool>,
     pub v_data_3: Option<bool>,
