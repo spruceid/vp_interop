@@ -171,7 +171,6 @@ fn get_base_url(req: &Request) -> Url {
 
 #[event(fetch)]
 pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Response> {
-    worker_logger::init_with_string("debug");
     let status_path = format!("{}/:id/status", API_PREFIX);
     let router = Router::new();
     router
@@ -238,21 +237,33 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
         })
         .post_async(&format!("{}/:id/mdl_response", API_PREFIX), |mut req, ctx| async move {
             let id = get_id!(ctx);
-            let query = req.text().await.unwrap_or_default();
-
-            let mut headers = Headers::new();
-            headers.append(ContentType::name().as_ref(), "application/x-www-form-urlencoded")?;
-
-            let response: verify::Response = match serde_urlencoded::from_str(&query) {
-                Ok(p) => p,
-                Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
-            };
-
-            //return redirect_uri
-            match verify::validate_openid4vp_mdl_response(response.response, id, &mut CFDBClient {ctx}).await {
-                Ok(redirect_uri) => Ok(Response::from_bytes(redirect_uri.as_bytes().to_vec())?.with_headers(headers)),
-                Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
-            }.and_then(|r| r.with_cors(&get_cors()))
+            let query = req.form_data().await;
+            match query {
+                Ok(q) => {
+                    let entry = q.get("response");
+                    if let Some(e) = entry {
+                        let jwe = match e {
+                            FormEntry::Field(s) => {
+                                s
+                            },
+                            FormEntry::File(_f) => {
+                                return Err(Error::BadEncoding)
+                            }
+                        };
+                        let mut headers = Headers::new();
+                        headers.append(ContentType::name().as_ref(), "application/x-www-form-urlencoded")?;
+                        match verify::validate_openid4vp_mdl_response(jwe, id, &mut CFDBClient {ctx}).await {
+                            Ok(redirect_uri) => Ok(Response::from_bytes(redirect_uri.as_bytes().to_vec())?.with_headers(headers)),
+                            Err(e) => return CustomError::InternalError(e.to_string()).into(),
+                        }.and_then(|r| r.with_cors(&get_cors()))
+                    } else {
+                        Err(Error::BadEncoding)
+                    }
+                },
+                Err(_e) => {
+                    Err(Error::BodyUsed)
+                }
+            }
         })
         .get_async(&format!("{}/:id/mdl_results", API_PREFIX), |_req, ctx| async move {
             let id = get_id!(ctx);

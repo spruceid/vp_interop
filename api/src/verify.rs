@@ -12,7 +12,6 @@ use isomdl::definitions::oid4vp::DeviceResponse;
 use isomdl180137::verify::ReaderSession;
 use isomdl180137::verify::UnattendedSessionManager;
 use josekit::jwk::alg::ec::EcKeyPair;
-use log::debug;
 use oidc4vp::mdl_request::ClientMetadata;
 use oidc4vp::{mdl_request::RequestObject, presentment::Verify, utils::Openid4vpError};
 use p256::NistP256;
@@ -83,7 +82,6 @@ pub async fn configured_openid4vp_mdl_request(
     //generate p256 ephemeral key and put public part into jwks
     let ec_key_pair: EcKeyPair<NistP256> = josekit::jwe::ECDH_ES.generate_ec_key_pair()?;
 
-    debug!(target: "mdl_request", "4");
     let jwks = json!({ "keys": vec![Value::Object(ec_key_pair.to_jwk_public_key().into())] });
 
     let client_metadata = ClientMetadata {
@@ -178,6 +176,7 @@ pub async fn validate_openid4vp_mdl_response(
     let vp_progress = db.get_vp(id).await?;
     if let Some(VPProgress::OPState(mut progress)) = vp_progress {
         let mut session_manager = progress.unattended_session_manager.clone();
+
         let result = isomdl180137::verify::decrypted_authorization_response(
             response,
             session_manager.clone(),
@@ -208,7 +207,9 @@ pub async fn validate_openid4vp_mdl_response(
             }
         }
     } else {
-        Err(Openid4vpError::OID4VPError)
+        Err(Openid4vpError::Empty(
+            "Could not retrieve transaction from database".to_string(),
+        ))
     }
 }
 
@@ -237,6 +238,7 @@ pub(crate) mod tests {
     use josekit::jwe::alg::ecdh_es::EcdhEsJweDecrypter;
     use josekit::jwe::alg::ecdh_es::EcdhEsJweEncrypter;
     use oidc4vp::mdl_request::ClientMetadata;
+    use oidc4vp::mdl_request::MetaData;
     use rand::{distributions::Alphanumeric, Rng};
     use ssi::jwk::{Base64urlUInt, Params};
     use x509_certificate;
@@ -244,7 +246,7 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn mdl_presentation_e2e() {
         // Set up request and load keys, cert, documents
-        let mdl_data_fields = mdl_data_fields::minimal_mdl_request();
+        let mdl_data_fields = mdl_data_fields::age_over_mdl_request();
         let namespace = NonEmptyMap::try_from(mdl_data_fields).unwrap();
         let requested_fields = NonEmptyMap::new("org.iso.18013.5.1".to_string(), namespace);
 
@@ -394,7 +396,7 @@ pub(crate) mod tests {
             .unwrap();
         // // Then mdoc app posts response to response endpoint
 
-        println!("response: {:#?}", response);
+        //println!("response: {:#?}", response);
 
         //Verifier decrypts the response
         let result = validate_openid4vp_mdl_response(response, session_id, &mut db)
@@ -476,5 +478,94 @@ pub(crate) mod tests {
 
         let (p, _h) = josekit::jwt::decode_with_decrypter(jwe, &decrypter).unwrap();
         println!("payload: {:?}", p);
+    }
+
+    #[tokio::test]
+    async fn respond() {
+        let test_mdoc = include_bytes!("./test/test_mdoc.cbor");
+        let mdoc: Mdoc = serde_cbor::from_slice(test_mdoc).unwrap();
+        let req_jwt = "eyJhbGciOiJFUzI1NiIsIng1YyI6WyJNSUlDdHpDQ0FsMmdBd0lCQWdJSkFJSVpXUThCRFBrTE1Bb0dDQ3FHU000OUJBTUNNR1l4Q3pBSkJnTlZCQVlUQWxWVE1RNHdEQVlEVlFRSURBVlZVeTFEUVRFTU1Bb0dBMVVFQ2d3RFJFMVdNVGt3TndZRFZRUUREREJEWVd4cFptOXlibWxoSUVSTlZpQlNiMjkwSUVOQklDMGdTVk5QSUVKeWFYTmlZVzVsSUZSbGMzUWdSWFpsYm5Rd0hoY05Nak13TmpBeE1URXlPRE16V2hjTk1qUXdOVE14TVRFeU9ETXpXakJiTVFzd0NRWURWUVFHRXdKVlV6RU9NQXdHQTFVRUNBd0ZWVk10UTBFeEREQUtCZ05WQkFvTUEwUk5WakV1TUN3R0ExVUVBd3dsVkVWVFZFbE9SeUJEUlZKVVNVWkpRMEZVUlNCUFNVUTBWbEFnTFNCV1pYSnBabWxsY2pCWk1CTUdCeXFHU000OUFnRUdDQ3FHU000OUF3RUhBMElBQk82SWVJck5PSFlLSjBQK0ttSTNMaUNLZHVETGxvS0h1R1U0ZHAvbHU5Mmg5QkdKUWx0blNxOWFJK3I3WnpaQlh3bVc5S0lXdjB4Y0VjeUd6d2dBaW1hamdmNHdnZnN3SFFZRFZSME9CQllFRkhhRCtETzM1T0dlekR5SGhSOFE3T2NONGxBZE1COEdBMVVkSXdRWU1CYUFGS2R0QkZCODcrVGJUOEdZelRrRkp1N29rYWZtTURRR0NXQ0dTQUdHK0VJQkRRUW5GaVZVUlZOVVNVNUhJRU5GVWxSSlJrbERRVlJGSUU5SlJEUldVQ0F0SUZabGNtbG1hV1Z5TUE0R0ExVWREd0VCL3dRRUF3SUhnREFWQmdOVkhTVUJBZjhFQ3pBSkJnY29nWXhkQlFFQ01CSUdBMVVkRXdFQi93UUlNQVlCQWY4Q0FRQXdLQVlEVlIwZkJDRXdIekFkb0J1Z0dZWVhhSFIwY0hNNkx5OWxlR0Z0Y0d4bExtTnZiUzl0Wkd3d0hnWURWUjBTQkJjd0ZZRVRaWGhoYlhCc1pVQmxlR0Z0Y0d4bExtTnZiVEFLQmdncWhrak9QUVFEQWdOSUFEQkZBaUJ5ZXdWb2VCeU9sS2Z4VURrOFJHQkR3THJRTWU3UnREZ3F3Um1YUEZTc1RRSWhBSkNKL0R0TU91Y2c3dkluVGk1K3hLUkdTRHl2NmNSQ1pJcTQ1dC9UZ2tOQSJdLCJ0eXAiOiJKV1QifQ.eyJhdWQiOiJodHRwczovL3NlbGYtaXNzdWVkLm1lL3YyIiwicmVzcG9uc2VfdHlwZSI6InZwX3Rva2VuIiwiY2xpZW50X2lkIjoiVEVTVElORyBDRVJUSUZJQ0FURSBPSUQ0VlAgLSBWZXJpZmllciIsImNsaWVudF9pZF9zY2hlbWUiOiJ4NTA5X3Nhbl91cmkiLCJyZXNwb25zZV91cmkiOiJodHRwczovL2FwcC52cC5pbnRlcm9wLnNwcnVjZWlkLnh5ei92cC8yYWUxZmE5YS02M2RkLTRlMGQtYjcxNC00N2ZjMTFmYWE5ZTEvbWRsX3Jlc3BvbnNlIiwicHJlc2VudGF0aW9uX2RlZmluaXRpb24iOnsiaWQiOiJtREwiLCJpbnB1dF9kZXNjcmlwdG9ycyI6W3siaWQiOiJvcmcuaXNvLjE4MDEzLjUuMS5tREwgIiwiZm9ybWF0Ijp7Im1zb19tZG9jIjp7ImFsZyI6WyJFUzI1NiJdfX0sImNvbnN0cmFpbnRzIjp7ImZpZWxkcyI6W3sicGF0aCI6WyIkWydvcmcuaXNvLjE4MDEzLjUuMSddWydhZ2Vfb3Zlcl8xOCddIl0sImludGVudF90b19yZXRhaW4iOnRydWV9XSwibGltaXRfZGlzY2xvc3VyZSI6InJlcXVpcmVkIn19XX0sImNsaWVudF9tZXRhZGF0YSI6eyJhdXRob3JpemF0aW9uX2VuY3J5cHRlZF9yZXNwb25zZV9hbGciOiJFQ0RILUVTIiwiYXV0aG9yaXphdGlvbl9lbmNyeXB0ZWRfcmVzcG9uc2VfZW5jIjoiQTI1NkdDTSIsInJlcXVpcmVfc2lnbmVkX3JlcXVlc3Rfb2JqZWN0Ijp0cnVlLCJqd2tzIjp7ImtleXMiOlt7Imt0eSI6IkVDIiwiY3J2IjoiUC0yNTYiLCJ4IjoiUHNiTGNxcGJmQUhLcVR4bTZld04tTEg3eU56TEs5MjJIazFuX3NKM1BjRSIsInkiOiJNQ09PbUtHRTZIT0Y3RTZUWmtiSi1vVmxfMjhzSXBNd1p5b29vNGlHaVdJIn1dfSwidnBfZm9ybWF0cyI6eyJtc29fbWRvYyI6eyJhbGciOlsiRVMyNTYiXX19fSwicmVzcG9uc2VfbW9kZSI6ImRpcmVjdF9wb3N0Lmp3dCIsIm5vbmNlIjoiVGdSbkxTcEh0MktwYklreiJ9.dzPTx2b7ogyZMvLTvp2104icbQS6mjuKTiCmwXI1xAi-XIoSpreiT6nJ3wn208TGjimApumQ3nuN38_IG25J5Q".to_string();
+
+        //mdoc app decodes the request
+        let (header, _payload) = ssi::jws::decode_unverified(&req_jwt).unwrap();
+        let parsed_cert_chain = header
+            .x509_certificate_chain
+            .unwrap()
+            .first()
+            .unwrap()
+            .clone();
+        let parsed_cert_bytes = base64::decode(parsed_cert_chain).unwrap();
+        let parsed_vk: p256::elliptic_curve::PublicKey<p256::NistP256> =
+            oidc4vp::mdl_request::x509_public_key(parsed_cert_bytes).unwrap();
+
+        //println!("parsed_vk: {:?} " , parsed_vk);
+        let parsed_vk_bytes = parsed_vk.to_sec1_bytes();
+        let parsed_verifier_key: ssi::jwk::JWK = ssi::jwk::p256_parse(&parsed_vk_bytes).unwrap();
+        //println!("parsed_verifier_key: {:?}", parsed_verifier_key);
+        let epk = json!(parsed_verifier_key);
+        let pek = match epk {
+            Value::Object(map) => map,
+            _ => serde_json::Map::new(),
+        };
+        let verifier_epk = josekit::jwk::Jwk::from_map(pek).unwrap();
+        println!("epk {:?}", verifier_epk);
+        let der = include_str!("./test/holder_testing_key.b64");
+        let doc_type = mdoc.doc_type.clone();
+        let documents = NonEmptyMap::new(doc_type, mdoc.into());
+
+        let der_bytes = base64::decode(der).unwrap();
+        let _device_key: p256::ecdsa::SigningKey =
+            p256::SecretKey::from_sec1_der(&der_bytes).unwrap().into();
+        let cek_pair: EcKeyPair<NistP256> = josekit::jwe::ECDH_ES.generate_ec_key_pair().unwrap();
+        let parsed_req: RequestObject =
+            ssi::jwt::decode_verify(&req_jwt, &parsed_verifier_key).unwrap();
+        //assert_eq!(verifier_key.to_public(), parsed_verifier_key);
+
+        let mdoc_generated_nonce: String = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(16)
+            .map(char::from)
+            .collect();
+
+        let metadata = parsed_req.client_metadata.clone();
+        match metadata {
+            MetaData::ClientMetadata { client_metadata: c } => {
+                let state = isomdl180137::present::initialise_session(
+                    mdoc_generated_nonce.clone(),
+                    parsed_req.clone(),
+                    c,
+                )
+                .unwrap();
+                let prepared_response = prepare_openid4vp_mdl_response(
+                    parsed_req.clone(),
+                    documents,
+                    mdoc_generated_nonce.clone(),
+                )
+                .await
+                .unwrap();
+
+                let response = complete_mdl_response(prepared_response, state, der_bytes)
+                    .await
+                    .unwrap();
+
+                println!("response: {:#?}", response);
+            }
+            MetaData::ClientMetadataUri {
+                client_metadata_uri: _s,
+            } => {}
+        }
+
+        println!("mdoc_esk: {:?}", cek_pair.to_jwk_private_key());
+
+        //TODO: insert signature, not the key
+
+        // // Then mdoc app posts response to response endpoint
+
+        //Verifier decrypts the response
+        // let result = validate_openid4vp_mdl_response(response, session_id, &mut db)
+        //    .await
+        //    .unwrap();
+
+        // println!("result: {:?}", result);
     }
 }
