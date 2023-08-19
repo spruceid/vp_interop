@@ -269,13 +269,13 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
         .get_async(&format!("{}/:id/outcome", API_PREFIX), |_req, ctx| async move {
             let id = get_id!(ctx);
             let outcome = verify::show_results(id, &mut CFDBClient {ctx}).await
-                .and_then(|r| 
+                .and_then(|r|
                     r.status()
                     .map(|s| s.as_bytes().to_vec())
                     .map_err(|e| CustomError::InternalError(e.to_string()))
                 )
                 .map_err(|e| format!("{e}"))?;
-            
+
             let mut headers = Headers::new();
             headers.set("content-type", "text/plain")?;
 
