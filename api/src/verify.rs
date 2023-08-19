@@ -19,6 +19,7 @@ use p256::NistP256;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
+use std::collections::BTreeMap;
 use uuid::Uuid;
 use worker::Url;
 
@@ -70,6 +71,7 @@ pub async fn configured_openid4vp_mdl_request(
     let x509c = include_str!("./test/verifier_test_cert.b64");
     let x509_bytes = base64::decode(x509c)?;
     let x509_certificate = x509_certificate::X509Certificate::from_der(x509_bytes)?;
+
     let client_id = x509_certificate
         .subject_common_name()
         .context("no client_id in certificate")?;
@@ -94,6 +96,7 @@ pub async fn configured_openid4vp_mdl_request(
 
     let payload = openid4vp_mdl_request(
         id,
+        presentation,
         NonEmptyMap::new("org.iso.18013.5.1".to_string(), requested_fields),
         client_id,
         response_uri.to_string(),
@@ -126,6 +129,7 @@ pub async fn configured_openid4vp_mdl_request(
 #[allow(clippy::too_many_arguments)]
 pub async fn openid4vp_mdl_request(
     id: Uuid,
+    presentation_type: String,
     requested_fields: NonEmptyMap<String, NonEmptyMap<Option<String>, Option<bool>>>,
     client_id: String,
     response_uri: String,
@@ -149,10 +153,12 @@ pub async fn openid4vp_mdl_request(
         response_mode,
         client_metadata,
         nonce.to_owned(),
-    );
+    )?;
+
     let timestamp = time::OffsetDateTime::now_utc();
     let progress = VPProgress::OPState(OnlinePresentmentState {
         unattended_session_manager,
+        presentation_type,
         verifier_id: "RO-3".to_string(),
         protocol: "OpenID4VP".to_string(),
         transaction_id: id.clone().to_string(),
@@ -165,7 +171,7 @@ pub async fn openid4vp_mdl_request(
         v_sec_3: None,
     });
     db.put_vp(id, progress).await?;
-    request
+    Ok(request)
 }
 
 pub async fn validate_openid4vp_mdl_response(
@@ -178,27 +184,37 @@ pub async fn validate_openid4vp_mdl_response(
     if let Some(VPProgress::OPState(progress)) = vp_progress {
         let mut session_manager = progress.unattended_session_manager.clone();
 
+        let mut test_checks = TestProgress {
+            verifier_id: progress.verifier_id,
+            protocol: progress.protocol,
+            transaction_id: progress.transaction_id,
+            v_data_1: progress.v_data_1,
+            v_data_2: Some(true),
+            v_data_3: None,
+            v_sec_1: None,
+            v_sec_2: None,
+            v_sec_3: None,
+        };
+
         let result = isomdl180137::verify::decrypted_authorization_response(
             response,
             session_manager.clone(),
         )?;
 
+        test_checks.v_sec_1 = Some(true);
+
         let device_response: DeviceResponse = serde_cbor::from_slice(&result)?;
         let result = session_manager.handle_response(device_response);
 
         match result {
-            Ok(_r) => {
-                let test_checks = TestProgress {
-                    verifier_id: progress.verifier_id,
-                    protocol: progress.protocol,
-                    transaction_id: progress.transaction_id,
-                    v_data_1: progress.v_data_1,
-                    v_data_2: Some(true),
-                    v_data_3: Some(true),
-                    v_sec_1: Some(true),
-                    v_sec_2: None,
-                    v_sec_3: None,
-                };
+            Ok(r) => {
+                let all_fields_present = check_fields(r, progress.presentation_type)?;
+                if all_fields_present {
+                    test_checks.v_data_3 = Some(true)
+                } else {
+                    test_checks.v_data_3 = Some(false)
+                }
+
                 //TODO: check v_sec_2 and v_sec_3
                 //TODO; bring saved to db in line with intent_to_retain from request
                 db.put_vp(id, VPProgress::InteropChecks(test_checks))
@@ -221,6 +237,27 @@ pub async fn validate_openid4vp_mdl_response(
             "Could not retrieve transaction from database".to_string(),
         ))
     }
+}
+
+fn check_fields(
+    result: BTreeMap<String, Value>,
+    presentation_type: String,
+) -> Result<bool, Openid4vpError> {
+    let data_fields: Vec<String>;
+    if presentation_type == *"mDL" {
+        data_fields = crate::mdl_data_fields::minimal_mdl_data_fields();
+    } else if presentation_type == *"age_over_18" {
+        data_fields = crate::mdl_data_fields::age_over_data_fields();
+    } else {
+        return Err(Openid4vpError::Empty(
+            "Could not recognize the presentation type".to_string(),
+        ));
+    }
+    let all_found: bool = data_fields
+        .iter()
+        .all(|field| result.iter().any(|x| x.0 == field));
+
+    Ok(all_found)
 }
 
 pub async fn show_results(id: Uuid, db: &mut dyn DBClient) -> Result<VPProgress, CustomError> {
@@ -326,6 +363,7 @@ pub(crate) mod tests {
 
         let payload = openid4vp_mdl_request(
             session_id,
+            "age_over_18".to_string(),
             requested_fields,
             client_id,
             response_uri,
