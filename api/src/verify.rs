@@ -371,7 +371,6 @@ pub(crate) mod tests {
         let der_bytes = base64::decode(der).unwrap();
         let _device_key: p256::ecdsa::SigningKey =
             p256::SecretKey::from_sec1_der(&der_bytes).unwrap().into();
-        let cek_pair: EcKeyPair<NistP256> = josekit::jwe::ECDH_ES.generate_ec_key_pair().unwrap();
         let parsed_req: RequestObject =
             ssi::jwt::decode_verify(&request_object_jwt, &parsed_verifier_key).unwrap();
         //assert_eq!(verifier_key.to_public(), parsed_verifier_key);
@@ -394,8 +393,6 @@ pub(crate) mod tests {
             mdoc_nonce: mdoc_generated_nonce,
             request_object: parsed_req.clone(),
             verifier_epk: epk.clone(),
-            mdoc_epk: cek_pair.to_jwk_public_key(),
-            mdoc_esk: cek_pair.to_jwk_private_key(),
         };
 
         //TODO: insert signature, not the key
