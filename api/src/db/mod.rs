@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use async_trait::async_trait;
 use isomdl180137::verify::UnattendedSessionManager;
 use serde::{Deserialize, Serialize};
@@ -46,12 +46,62 @@ pub enum VPProgress {
 
 impl VPProgress {
     pub fn to_html(&self) -> Result<String, CustomError> {
-        let status = self.status();
+        let status = self
+            .status()
+            .map_err(|e| CustomError::InternalError(e.to_string()))?;
         Ok(format!("<p>{status}</p>"))
     }
 
-    pub fn status(&self) -> String {
-        todo!()
+    pub fn status(&self) -> Result<String> {
+        let Self::OPState(OnlinePresentmentState {
+            verifier_id,
+            protocol,
+            transaction_id,
+            timestamp,
+            scenario,
+            v_data_1,
+            v_data_2,
+            v_data_3,
+            v_sec_1,
+            v_sec_2,
+            v_sec_3,
+            ..
+        }) = self
+        else { bail!("unexpected state") };
+        let started = timestamp.unix_timestamp();
+        let v_data_1 = v_data_1
+            .map(|r| if r { "OK" } else { "Failed" })
+            .unwrap_or("Skipped");
+        let v_data_2 = v_data_2
+            .map(|r| if r { "OK" } else { "Failed" })
+            .unwrap_or("Skipped");
+        let v_data_3 = v_data_3
+            .map(|r| if r { "OK" } else { "Failed" })
+            .unwrap_or("Skipped");
+        let v_sec_1 = v_sec_1
+            .map(|r| if r { "OK" } else { "Failed" })
+            .unwrap_or("Skipped");
+        let v_sec_2 = v_sec_2
+            .map(|r| if r { "OK" } else { "Failed" })
+            .unwrap_or("Skipped");
+        let v_sec_3 = v_sec_3
+            .map(|r| if r { "OK" } else { "Failed" })
+            .unwrap_or("Skipped");
+        Ok(format!(
+            r#"
+Verifier: {verifier_id}
+Protocol: {protocol}
+Transaction: {transaction_id}
+Started: {started}
+Scenario: {scenario}
+[ts] Check: V_DATA_1: {v_data_1}
+[ts] Check: V_DATA_2: {v_data_2}
+[ts] Check: V_DATA_3: {v_data_3}
+[ts] Check: V_SEC_1: {v_sec_1}
+[ts] Check: V_SEC_2: {v_sec_2}
+[ts] Check: V_SEC_3: {v_sec_3}
+            "#
+        ))
     }
 }
 
