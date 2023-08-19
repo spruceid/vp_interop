@@ -71,6 +71,7 @@ pub async fn configured_openid4vp_mdl_request(
     let x509c = include_str!("./test/verifier_test_cert.b64");
     let x509_bytes = base64::decode(x509c)?;
     let x509_certificate = x509_certificate::X509Certificate::from_der(x509_bytes)?;
+
     let client_id = x509_certificate
         .subject_common_name()
         .context("no client_id in certificate")?;
@@ -252,25 +253,11 @@ fn check_fields(
             "Could not recognize the presentation type".to_string(),
         ));
     }
-    let matches: Vec<(String, bool)> = data_fields
-        .iter()
-        .map(|field| {
-            let m = result.iter().find(|x| x.0 == field);
-            if m.is_some() {
-                (field.clone(), true)
-            } else {
-                (field.clone(), false)
-            }
-        })
-        .collect();
+    let all_found: bool = data_fields
+    .iter()
+    .all(|field| result.iter().any(|x| x.0 == field));
 
-    let missing_fields: Vec<&(String, bool)> = matches.iter().filter(|field| !field.1).collect();
-    //let missing: Vec<String> = missing_fields.iter().map(|f| f.0.clone()).collect();
-    if missing_fields.is_empty() {
-        Ok(true)
-    } else {
-        Ok(false)
-    }
+    Ok(all_found)
 }
 
 pub async fn show_results(id: Uuid, db: &mut dyn DBClient) -> Result<VPProgress, CustomError> {
