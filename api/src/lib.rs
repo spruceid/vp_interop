@@ -255,7 +255,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                         let mut headers = Headers::new();
                         headers.append(ContentType::name().as_ref(), "application/x-www-form-urlencoded")?;
                         match verify::validate_openid4vp_mdl_response(jwe, id, &mut CFDBClient {ctx}, app_base_url).await {
-                            Ok(redirect_uri) => Ok(Response::from_bytes(redirect_uri.as_bytes().to_vec())?.with_headers(headers)),
+                            Ok(redirect_uri) => Ok(Response::from_bytes(redirect_uri.as_bytes().to_vec())?.with_headers(headers).with_status(302)),
                             Err(e) => return CustomError::InternalError(e.to_string()).into(),
                         }.and_then(|r| r.with_cors(&get_cors()))
                     } else {
