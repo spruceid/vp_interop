@@ -35,7 +35,6 @@ pub struct Response {
 }
 
 const API_PREFIX: &str = "/vp";
-const API_BASE: &str = "https://vp_interop_app-preview.spruceid.workers.dev";
 
 pub async fn configured_openid4vp_mdl_request(
     id: Uuid,
@@ -173,6 +172,7 @@ pub async fn validate_openid4vp_mdl_response(
     response: String,
     id: Uuid,
     db: &mut dyn DBClient,
+    api_base: Url,
 ) -> Result<String, Openid4vpError> {
     let vp_progress = db.get_vp(id).await?;
     if let Some(VPProgress::OPState(progress)) = vp_progress {
@@ -203,7 +203,7 @@ pub async fn validate_openid4vp_mdl_response(
                 //TODO; bring saved to db in line with intent_to_retain from request
                 db.put_vp(id, VPProgress::InteropChecks(test_checks))
                     .await?;
-                let redirect_uri = format!("{}{}{}{}", API_BASE, API_PREFIX, id, "/mdl_results");
+                let redirect_uri = format!("{}{}{}{}", api_base, API_PREFIX, id, "/mdl_results");
                 Ok(redirect_uri)
             }
             Err(e) => {
@@ -255,6 +255,7 @@ pub(crate) mod tests {
 
     #[tokio::test]
     async fn mdl_presentation_e2e() {
+        let base_url = Url::parse("http://example.com").unwrap();
         // Set up request and load keys, cert, documents
         let mdl_data_fields = mdl_data_fields::age_over_mdl_request();
         let namespace = NonEmptyMap::try_from(mdl_data_fields).unwrap();
@@ -404,7 +405,7 @@ pub(crate) mod tests {
         //println!("response: {:#?}", response);
 
         //Verifier decrypts the response
-        let result = validate_openid4vp_mdl_response(response, session_id, &mut db)
+        let result = validate_openid4vp_mdl_response(response, session_id, &mut db, base_url)
             .await
             .unwrap();
 

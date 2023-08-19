@@ -180,7 +180,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/jwt")?;
             let did = ctx.var(DID_KEY)?.to_string();
-            let app_base_url = ctx.var(APP_BASE_URL_KEY)?.to_string().parse()?;
+            let app_base_url: Url = ctx.var(APP_BASE_URL_KEY)?.to_string().parse()?;
             let base_url = get_base_url(&req);
             let mut jwk: JWK =
                 match serde_json::from_str(DID_JWK) {
@@ -237,6 +237,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             }.and_then(|r| r.with_cors(&get_cors()))
         })
         .post_async(&format!("{}/:id/mdl_response", API_PREFIX), |mut req, ctx| async move {
+            let app_base_url: Url = ctx.var(APP_BASE_URL_KEY)?.to_string().parse()?;
             let id = get_id!(ctx);
             let query = req.form_data().await;
             match query {
@@ -253,7 +254,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                         };
                         let mut headers = Headers::new();
                         headers.append(ContentType::name().as_ref(), "application/x-www-form-urlencoded")?;
-                        match verify::validate_openid4vp_mdl_response(jwe, id, &mut CFDBClient {ctx}).await {
+                        match verify::validate_openid4vp_mdl_response(jwe, id, &mut CFDBClient {ctx}, app_base_url).await {
                             Ok(redirect_uri) => Ok(Response::from_bytes(redirect_uri.as_bytes().to_vec())?.with_headers(headers)),
                             Err(e) => return CustomError::InternalError(e.to_string()).into(),
                         }.and_then(|r| r.with_cors(&get_cors()))
