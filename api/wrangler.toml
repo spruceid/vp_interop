@@ -7,19 +7,19 @@ routes = ["api.vp.interop.spruceid.xyz/*"]
 compatibility_date = "2022-11-21"
 
 kv_namespaces = [
-    { binding = "JWT_VC_INTEROP", id = "3abbcb1ef20040f4b724d77ea2281071", preview_id = "2dfe4ff8e8cd48e8adde5cddec3e9bc9" }
+    { binding = "JWT_VC_INTEROP", id = "3abbcb1ef20040f4b724d77ea2281071", preview_id = "2dfe4ff8e8cd48e8adde5cddec3e9bc9" },
 ]
 
 [vars]
 WORKERS_RS_VERSION = "0.0.12"
-APP_BASE_URL = "https://app.vp.interop.spruceid.xyz"
+APP_BASE_URL = "https://api.vp.interop.spruceid.xyz"
 DID = "did:web:api.vp.interop.spruceid.xyz"
 
 [env.preview]
 routes = []
 workers_dev = true
 kv_namespaces = [
-    { binding = "JWT_VC_INTEROP", id = "4a7d0889c6e747728b888087bb0081cd" }
+    { binding = "JWT_VC_INTEROP", id = "4a7d0889c6e747728b888087bb0081cd" },
 ]
 
 [env.preview.vars]
