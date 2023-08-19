@@ -207,7 +207,6 @@ pub async fn validate_openid4vp_mdl_response(
 
         match result {
             Ok(r) => {
-                
                 let all_fields_present = check_fields(r, progress.presentation_type)?;
                 if all_fields_present {
                     test_checks.v_data_3 = Some(true)
