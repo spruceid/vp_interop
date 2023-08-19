@@ -252,10 +252,8 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                                 return Err(Error::BadEncoding)
                             }
                         };
-                        let mut headers = Headers::new();
-                        headers.append(ContentType::name().as_ref(), "application/x-www-form-urlencoded")?;
                         match verify::validate_openid4vp_mdl_response(jwe, id, &mut CFDBClient {ctx}, app_base_url).await {
-                            Ok(redirect_uri) => Ok(Response::from_bytes(redirect_uri.as_bytes().to_vec())?.with_headers(headers).with_status(302)),
+                            Ok(redirect_uri) => Response::redirect(redirect_uri),
                             Err(e) => return CustomError::InternalError(e.to_string()).into(),
                         }.and_then(|r| r.with_cors(&get_cors()))
                     } else {
@@ -269,10 +267,11 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
         })
         .get_async(&format!("{}/:id/mdl_results", API_PREFIX), |_req, ctx| async move {
             let id = get_id!(ctx);
-            match verify::show_results(id, &mut CFDBClient {ctx}).await {
-                Ok(_) => Response::empty(),
-                Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
-            }.and_then(|r| r.with_cors(&get_cors()))
+            verify::show_results(id, &mut CFDBClient {ctx}).await
+                .and_then(|r| r.to_html())
+                .map(Response::from_html)
+                .unwrap_or(CustomError::BadRequest("Bad query params".to_string()).into())
+                .and_then(|r| r.with_cors(&get_cors()))
         })
         .get_async(&status_path, |mut _req, ctx| async move {
             let id = get_id!(ctx);

@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+use crate::CustomError;
+
 // #[cfg(target_arch = "wasm32")]
 pub mod cf;
 
@@ -52,6 +54,13 @@ pub enum VPProgress {
     InteropChecks(TestProgress),
     Failed(serde_json::Value),
     Done(serde_json::Value),
+}
+
+impl VPProgress {
+    pub fn to_html(&self) -> Result<String, CustomError> {
+        let inner = serde_json::to_string(&self)?;
+        Ok(format!("<p>{inner}</p>"))
+    }
 }
 
 // #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
