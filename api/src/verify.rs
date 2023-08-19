@@ -183,30 +183,36 @@ pub async fn validate_openid4vp_mdl_response(
     if let Some(VPProgress::OPState(progress)) = vp_progress {
         let mut session_manager = progress.unattended_session_manager.clone();
 
+        let mut test_checks = TestProgress {
+            verifier_id: progress.verifier_id,
+            protocol: progress.protocol,
+            transaction_id: progress.transaction_id,
+            v_data_1: progress.v_data_1,
+            v_data_2: Some(true),
+            v_data_3: None,
+            v_sec_1: None,
+            v_sec_2: None,
+            v_sec_3: None,
+        };
+
         let result = isomdl180137::verify::decrypted_authorization_response(
             response,
             session_manager.clone(),
         )?;
+
+        test_checks.v_sec_1 = Some(true);
 
         let device_response: DeviceResponse = serde_cbor::from_slice(&result)?;
         let result = session_manager.handle_response(device_response);
 
         match result {
             Ok(r) => {
-                let mut test_checks = TestProgress {
-                    verifier_id: progress.verifier_id,
-                    protocol: progress.protocol,
-                    transaction_id: progress.transaction_id,
-                    v_data_1: progress.v_data_1,
-                    v_data_2: Some(true),
-                    v_data_3: None,
-                    v_sec_1: Some(true),
-                    v_sec_2: None,
-                    v_sec_3: None,
-                };
+                
                 let all_fields_present = check_fields(r, progress.presentation_type)?;
                 if all_fields_present {
                     test_checks.v_data_3 = Some(true)
+                } else {
+                    test_checks.v_data_3 = Some(false)
                 }
 
                 //TODO: check v_sec_2 and v_sec_3
@@ -260,14 +266,11 @@ fn check_fields(
         .collect();
 
     let missing_fields: Vec<&(String, bool)> = matches.iter().filter(|field| !field.1).collect();
-    let missing: Vec<String> = missing_fields.iter().map(|f| f.0.clone()).collect();
+    //let missing: Vec<String> = missing_fields.iter().map(|f| f.0.clone()).collect();
     if missing_fields.is_empty() {
         Ok(true)
     } else {
-        Err(Openid4vpError::Empty(format!(
-            "The response is missing the following expected fields: {:?}",
-            missing
-        )))
+        Ok(false)
     }
 }
 
