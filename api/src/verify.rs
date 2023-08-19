@@ -83,8 +83,10 @@ pub async fn configured_openid4vp_mdl_request(
 
     //generate p256 ephemeral key and put public part into jwks
     let ec_key_pair: EcKeyPair<NistP256> = josekit::jwe::ECDH_ES.generate_ec_key_pair()?;
+    let mut epk = ec_key_pair.to_jwk_public_key();
+    epk.set_key_use("enc");
 
-    let jwks = json!({ "keys": vec![Value::Object(ec_key_pair.to_jwk_public_key().into())] });
+    let jwks = json!({ "keys": vec![Value::Object(epk.into())] });
 
     let client_metadata = ClientMetadata {
         authorization_encrypted_response_alg: "ECDH-ES".to_string(),
