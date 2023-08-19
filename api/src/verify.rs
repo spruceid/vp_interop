@@ -171,12 +171,12 @@ pub async fn openid4vp_mdl_request(
         timestamp,
         scenario,
         complete: false,
-        v_data_1: Some(true),
-        v_data_2: None,
-        v_data_3: None,
-        v_sec_1: None,
-        v_sec_2: None,
-        v_sec_3: None,
+        v_data_1: Some(true).into(),
+        v_data_2: None.into(),
+        v_data_3: None.into(),
+        v_sec_1: None.into(),
+        v_sec_2: None.into(),
+        v_sec_3: None.into(),
     });
     db.put_vp(id, progress).await?;
     Ok(request)
@@ -190,8 +190,8 @@ pub async fn validate_openid4vp_mdl_response(
 ) -> Result<Url, Openid4vpError> {
     let vp_progress = db.get_vp(id).await?;
     if let Some(VPProgress::OPState(mut progress)) = vp_progress {
-        progress.v_data_2 = Some(true);
-        progress.v_sec_1 = Some(false);
+        progress.v_data_2 = Some(true).into();
+        progress.v_sec_1 = Some(false).into();
         db.put_vp(id, VPProgress::OPState(progress.clone())).await?;
 
         let mut session_manager = progress.unattended_session_manager.clone();
@@ -201,13 +201,15 @@ pub async fn validate_openid4vp_mdl_response(
         )?;
         let device_response: DeviceResponse = serde_cbor::from_slice(&result)?;
 
-        progress.v_sec_1 = Some(true);
+        progress.v_sec_1 = Some(true).into();
         let result = session_manager.handle_response(device_response);
 
         match result {
             Ok(r) => {
-                progress.v_data_3 = check_fields(r, progress.presentation_type.clone()).ok();
-                progress.v_sec_1 = Some(true);
+                progress.v_data_3 = check_fields(r, progress.presentation_type.clone())
+                    .ok()
+                    .into();
+                progress.v_sec_1 = Some(true).into();
                 //TODO: check v_sec_2 and v_sec_3
                 //TODO; bring saved to db in line with intent_to_retain from request
                 db.put_vp(id, VPProgress::OPState(progress)).await?;

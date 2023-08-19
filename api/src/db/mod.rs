@@ -27,12 +27,38 @@ pub struct OnlinePresentmentState {
     pub timestamp: OffsetDateTime,
     pub complete: bool,
     pub scenario: String,
-    pub v_data_1: Option<bool>,
-    pub v_data_2: Option<bool>,
-    pub v_data_3: Option<bool>,
-    pub v_sec_1: Option<bool>,
-    pub v_sec_2: Option<bool>,
-    pub v_sec_3: Option<bool>,
+    pub v_data_1: Check,
+    pub v_data_2: Check,
+    pub v_data_3: Check,
+    pub v_sec_1: Check,
+    pub v_sec_2: Check,
+    pub v_sec_3: Check,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Check {
+    timestamp: OffsetDateTime,
+    result: Option<bool>,
+}
+
+impl Check {
+    fn to_log(&self) -> (i64, &'static str) {
+        (
+            self.timestamp.unix_timestamp(),
+            self.result
+                .map(|r| if r { "OK" } else { "Failed" })
+                .unwrap_or("Skipped"),
+        )
+    }
+}
+
+impl From<Option<bool>> for Check {
+    fn from(result: Option<bool>) -> Self {
+        Self {
+            result,
+            timestamp: OffsetDateTime::now_utc(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -60,24 +86,27 @@ impl OnlinePresentmentState {
             ..
         } = self;
         let started = timestamp.unix_timestamp();
-        let v_data_1 = v_data_1
-            .map(|r| if r { "OK" } else { "Failed" })
-            .unwrap_or("Skipped");
-        let v_data_2 = v_data_2
-            .map(|r| if r { "OK" } else { "Failed" })
-            .unwrap_or("Skipped");
-        let v_data_3 = v_data_3
-            .map(|r| if r { "OK" } else { "Failed" })
-            .unwrap_or("Skipped");
-        let v_sec_1 = v_sec_1
-            .map(|r| if r { "OK" } else { "Failed" })
-            .unwrap_or("Skipped");
-        let v_sec_2 = v_sec_2
-            .map(|r| if r { "OK" } else { "Failed" })
-            .unwrap_or("Skipped");
-        let v_sec_3 = v_sec_3
-            .map(|r| if r { "OK" } else { "Failed" })
-            .unwrap_or("Skipped");
+        let v_data_1 = v_data_1.to_log();
+        let v_data_2 = v_data_2.to_log();
+        let v_data_3 = v_data_3.to_log();
+        let v_sec_1 = v_sec_1.to_log();
+        let v_sec_2 = v_sec_2.to_log();
+        let v_sec_3 = v_sec_3.to_log();
+        let mut checks = [
+            (v_data_1.0, v_data_1.1, "V_DATA_1"),
+            (v_data_2.0, v_data_2.1, "V_DATA_2"),
+            (v_data_3.0, v_data_3.1, "V_DATA_3"),
+            (v_sec_1.0, v_sec_1.1, "V_SEC_1"),
+            (v_sec_2.0, v_sec_2.1, "V_SEC_2"),
+            (v_sec_3.0, v_sec_3.1, "V_SEC_3"),
+        ];
+        checks.sort_by(|a, b| a.0.cmp(&b.0));
+        let checks = checks
+            .into_iter()
+            .map(|(ts, res, name)| format!("[{ts}] Check: {name}: {res}"))
+            .collect::<Vec<String>>()
+            .join("\n");
+
         Ok(format!(
             r#"
 Verifier: {verifier_id}
@@ -85,12 +114,7 @@ Protocol: {protocol}
 Transaction: {transaction_id}
 Started: {started}
 Scenario: {scenario}
-[ts] Check: V_DATA_1: {v_data_1}
-[ts] Check: V_DATA_2: {v_data_2}
-[ts] Check: V_DATA_3: {v_data_3}
-[ts] Check: V_SEC_1: {v_sec_1}
-[ts] Check: V_SEC_2: {v_sec_2}
-[ts] Check: V_SEC_3: {v_sec_3}
+{checks}
             "#
         ))
     }
