@@ -1,6 +1,5 @@
 use crate::db::DBClient;
 use crate::db::OnlinePresentmentState;
-use crate::db::TestProgress;
 use crate::mdl_data_fields::age_over_mdl_request;
 use crate::minimal_mdl_request;
 use crate::Base64urlUInt;
@@ -45,11 +44,14 @@ pub async fn configured_openid4vp_mdl_request(
 ) -> Result<String, CustomError> {
     let presentation = params.presentation_type;
     let requested_fields: NonEmptyMap<Option<String>, Option<bool>>;
+    let scenario: String;
 
     if presentation == "age_over_18" {
         requested_fields = NonEmptyMap::try_from(age_over_mdl_request())?;
-    } else if presentation == *"mDL" {
+        scenario = "SCE_4VP_2".into();
+    } else if presentation == "mDL" {
         requested_fields = NonEmptyMap::try_from(minimal_mdl_request())?;
+        scenario = "SCE_4VP_1".into();
     } else {
         return Err(CustomError::BadRequest(
             "Unsupported presentation type".to_string(),
@@ -83,8 +85,10 @@ pub async fn configured_openid4vp_mdl_request(
 
     //generate p256 ephemeral key and put public part into jwks
     let ec_key_pair: EcKeyPair<NistP256> = josekit::jwe::ECDH_ES.generate_ec_key_pair()?;
+    let mut epk = ec_key_pair.to_jwk_public_key();
+    epk.set_key_use("enc");
 
-    let jwks = json!({ "keys": vec![Value::Object(ec_key_pair.to_jwk_public_key().into())] });
+    let jwks = json!({ "keys": vec![Value::Object(epk.into())] });
 
     let client_metadata = ClientMetadata {
         authorization_encrypted_response_alg: "ECDH-ES".to_string(),
@@ -104,6 +108,7 @@ pub async fn configured_openid4vp_mdl_request(
         "direct_post.jwt".to_string(),
         client_metadata,
         ec_key_pair,
+        scenario,
         db,
     )
     .await?;
@@ -137,6 +142,7 @@ pub async fn openid4vp_mdl_request(
     response_mode: String,
     client_metadata: ClientMetadata,
     ec_key_pair: EcKeyPair<NistP256>,
+    scenario: String,
     db: &mut dyn DBClient,
 ) -> Result<RequestObject, Openid4vpError> {
     let nonce = gen_nonce().secret().clone();
@@ -163,12 +169,14 @@ pub async fn openid4vp_mdl_request(
         protocol: "OpenID4VP".to_string(),
         transaction_id: id.clone().to_string(),
         timestamp,
-        v_data_1: Some(true),
-        v_data_2: None,
-        v_data_3: None,
-        v_sec_1: None,
-        v_sec_2: None,
-        v_sec_3: None,
+        scenario,
+        complete: false,
+        v_data_1: Some(true).into(),
+        v_data_2: None.into(),
+        v_data_3: None.into(),
+        v_sec_1: None.into(),
+        v_sec_2: None.into(),
+        v_sec_3: None.into(),
     });
     db.put_vp(id, progress).await?;
     Ok(request)
@@ -178,49 +186,40 @@ pub async fn validate_openid4vp_mdl_response(
     response: String,
     id: Uuid,
     db: &mut dyn DBClient,
-    api_base: Url,
-) -> Result<String, Openid4vpError> {
+    mut app_base: Url,
+) -> Result<Url, Openid4vpError> {
     let vp_progress = db.get_vp(id).await?;
-    if let Some(VPProgress::OPState(progress)) = vp_progress {
+    if let Some(VPProgress::OPState(mut progress)) = vp_progress {
+        progress.v_data_2 = Some(true).into();
+        progress.v_sec_1 = Some(false).into();
+        db.put_vp(id, VPProgress::OPState(progress.clone())).await?;
+
         let mut session_manager = progress.unattended_session_manager.clone();
-
-        let mut test_checks = TestProgress {
-            verifier_id: progress.verifier_id,
-            protocol: progress.protocol,
-            transaction_id: progress.transaction_id,
-            v_data_1: progress.v_data_1,
-            v_data_2: Some(true),
-            v_data_3: None,
-            v_sec_1: None,
-            v_sec_2: None,
-            v_sec_3: None,
-        };
-
         let result = isomdl180137::verify::decrypted_authorization_response(
             response,
             session_manager.clone(),
         )?;
-
-        test_checks.v_sec_1 = Some(true);
-
         let device_response: DeviceResponse = serde_cbor::from_slice(&result)?;
+
+        progress.v_sec_1 = Some(true).into();
         let result = session_manager.handle_response(device_response);
 
         match result {
             Ok(r) => {
-                let all_fields_present = check_fields(r, progress.presentation_type)?;
-                if all_fields_present {
-                    test_checks.v_data_3 = Some(true)
-                } else {
-                    test_checks.v_data_3 = Some(false)
-                }
-
+                progress.v_data_3 = check_fields(r, progress.presentation_type.clone())
+                    .ok()
+                    .into();
+                progress.v_sec_1 = Some(true).into();
                 //TODO: check v_sec_2 and v_sec_3
                 //TODO; bring saved to db in line with intent_to_retain from request
-                db.put_vp(id, VPProgress::InteropChecks(test_checks))
-                    .await?;
-                let redirect_uri = format!("{}{}{}{}", api_base, API_PREFIX, id, "/mdl_results");
-                Ok(redirect_uri)
+                db.put_vp(id, VPProgress::OPState(progress)).await?;
+                app_base
+                    .path_segments_mut()
+                    .map_err(|_| Openid4vpError::OID4VPError)?
+                    .push("outcome")
+                    .push(&id.to_string());
+
+                Ok(app_base)
             }
             Err(e) => {
                 db.put_vp(
@@ -371,6 +370,7 @@ pub(crate) mod tests {
             response_mode,
             client_metadata,
             verifier_key_pair,
+            "SCE_4VP_2".into(),
             &mut db,
         )
         .await

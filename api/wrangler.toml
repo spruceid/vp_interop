@@ -12,7 +12,8 @@ kv_namespaces = [
 
 [vars]
 WORKERS_RS_VERSION = "0.0.12"
-APP_BASE_URL = "https://api.vp.interop.spruceid.xyz"
+API_BASE_URL = "https://api.vp.interop.spruceid.xyz"
+APP_BASE_URL = "https://app.vp.interop.spruceid.xyz"
 DID = "did:web:api.vp.interop.spruceid.xyz"
 
 [env.preview]
@@ -24,5 +25,6 @@ kv_namespaces = [
 
 [env.preview.vars]
 WORKERS_RS_VERSION = "0.0.12"
-APP_BASE_URL = "https://vp_interop_api-preview.spruceid.workers.dev"
+API_BASE_URL = "https://vp_interop_api-preview.spruceid.workers.dev"
+APP_BASE_URL = "https://vp_interop_app-preview.spruceid.workers.dev"
 DID = "did:web:api.vp.interop.spruceid.xyz"
