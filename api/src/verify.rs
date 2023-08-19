@@ -254,8 +254,8 @@ fn check_fields(
         ));
     }
     let all_found: bool = data_fields
-    .iter()
-    .all(|field| result.iter().any(|x| x.0 == field));
+        .iter()
+        .all(|field| result.iter().any(|x| x.0 == field));
 
     Ok(all_found)
 }
