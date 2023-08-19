@@ -9,7 +9,7 @@ cargo install trunk
 ## Development
 
 ```bash
-trunk serve
+API_BASE=http://localhost:8787 trunk serve
 ```
 
 ## Publish to Cloudflare Pages
