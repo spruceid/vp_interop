@@ -49,7 +49,9 @@ impl VPProgress {
         let status = self
             .status()
             .map_err(|e| CustomError::InternalError(e.to_string()))?;
-        Ok(format!("<p>{status}</p>"))
+        Ok(format!(
+            r#"<textarea readonly=true onload='this.style.height = "";this.style.height = this.scrollHeight + "px"'>\n{status}\n</textarea>"#
+        ))
     }
 
     pub fn status(&self) -> Result<String> {
