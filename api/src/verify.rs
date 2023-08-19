@@ -180,7 +180,7 @@ pub async fn validate_openid4vp_mdl_response(
     response: String,
     id: Uuid,
     db: &mut dyn DBClient,
-    mut api_base: Url,
+    mut app_base: Url,
 ) -> Result<Url, Openid4vpError> {
     let vp_progress = db.get_vp(id).await?;
     if let Some(VPProgress::OPState(mut progress)) = vp_progress {
@@ -202,14 +202,13 @@ pub async fn validate_openid4vp_mdl_response(
                 //TODO: check v_sec_2 and v_sec_3
                 //TODO; bring saved to db in line with intent_to_retain from request
                 db.put_vp(id, VPProgress::OPState(progress)).await?;
-                api_base
+                app_base
                     .path_segments_mut()
                     .map_err(|_| Openid4vpError::OID4VPError)?
-                    .push(API_PREFIX.strip_prefix('/').unwrap_or(API_PREFIX))
-                    .push(&id.to_string())
-                    .push("mdl_results");
+                    .push("outcome")
+                    .push(&id.to_string());
 
-                Ok(api_base)
+                Ok(app_base)
             }
             Err(e) => {
                 db.put_vp(

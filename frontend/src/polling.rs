@@ -30,7 +30,7 @@ enum VerifyPollState {
         errors: serde_json::Value,
     },
     Testing {
-        checks: serde_json::Value,
+        checks: String,
     },
 }
 
@@ -53,7 +53,7 @@ pub enum Msg {
 pub enum MsgStatus {
     S202,
     S204,
-    S200(serde_json::Value),
+    S200(String),
     S417(serde_json::Value),
 }
 
@@ -70,7 +70,7 @@ async fn fetch_status(id: Uuid) -> Msg {
     let status = match status {
         202 => MsgStatus::S202,
         204 => MsgStatus::S204,
-        200 => MsgStatus::S200(resp.json().await.unwrap()),
+        200 => MsgStatus::S200(resp.text().await.unwrap()),
         417 => MsgStatus::S417(resp.json().await.unwrap()),
         _ => panic!(),
     };
@@ -307,7 +307,7 @@ impl Component for VerifyPoll {
                           <a href="#close" aria-label="Close" class="close"></a>
                           {"✅ Test Results"}
                     </header>
-                    <pre><code>{serde_json::to_string_pretty(checks).unwrap()}</code></pre>
+                    <pre><code>{checks}</code></pre>
                     <footer style="text-align: right">
                       // <a href="#cancel" role="button" class="secondary">Cancel</a>
                       <a href="/" role="button">{"Back Home"}</a>

@@ -25,6 +25,7 @@ pub mod verify;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+const API_BASE_URL_KEY: &str = "API_BASE_URL";
 const APP_BASE_URL_KEY: &str = "APP_BASE_URL";
 const DID_KEY: &str = "DID";
 const API_PREFIX: &str = "/vp";
@@ -180,7 +181,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             let mut headers = Headers::new();
             headers.append(ContentType::name().as_ref(), "application/jwt")?;
             let did = ctx.var(DID_KEY)?.to_string();
-            let app_base_url: Url = ctx.var(APP_BASE_URL_KEY)?.to_string().parse()?;
+            let api_base_url: Url = ctx.var(API_BASE_URL_KEY)?.to_string().parse()?;
             let base_url = get_base_url(&req);
             let mut jwk: JWK =
                 match serde_json::from_str(DID_JWK) {
@@ -194,7 +195,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 Ok(p) => p,
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
-            match id_token(&app_base_url, &base_url, &jwk, did, id, &params, &mut CFDBClient {ctx}).await {
+            match id_token(&api_base_url, &base_url, &jwk, did, id, &params, &mut CFDBClient {ctx}).await {
                 Ok(jwt) => Ok(Response::from_bytes(jwt.as_bytes().to_vec())?.with_headers(headers)),
                 Err(e) => e.into(),
             }.and_then(|r| r.with_cors(&get_cors()))
@@ -229,7 +230,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 Ok(p) => p,
                 Err(_) => return CustomError::BadRequest("Bad query params".to_string()).into(),
             };
-            let base_url: Url = ctx.var(APP_BASE_URL_KEY)?.to_string().parse()?;
+            let base_url: Url = ctx.var(API_BASE_URL_KEY)?.to_string().parse()?;
             let result = configured_openid4vp_mdl_request(id, base_url, params, &mut CFDBClient {ctx}).await;
             match result {
                 Ok(jwt) => Ok(Response::from_bytes(jwt.as_bytes().to_vec())?.with_headers(headers)),
@@ -265,13 +266,21 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 }
             }
         })
-        .get_async(&format!("{}/:id/mdl_results", API_PREFIX), |_req, ctx| async move {
+        .get_async(&format!("{}/:id/outcome", API_PREFIX), |_req, ctx| async move {
             let id = get_id!(ctx);
-            verify::show_results(id, &mut CFDBClient {ctx}).await
-                .and_then(|r| r.to_html())
-                .map(Response::from_html)
-                .unwrap_or(CustomError::BadRequest("Bad query params".to_string()).into())
-                .and_then(|r| r.with_cors(&get_cors()))
+            let outcome = verify::show_results(id, &mut CFDBClient {ctx}).await
+                .and_then(|r| 
+                    r.status()
+                    .map(|s| s.as_bytes().to_vec())
+                    .map_err(|e| CustomError::InternalError(e.to_string()))
+                )
+                .map_err(|e| format!("{e}"))?;
+            
+            let mut headers = Headers::new();
+            headers.set("content-type", "text/plain")?;
+
+            Response::from_bytes(outcome)?.with_headers(headers)
+                .with_cors(&get_cors())
         })
         .get_async(&status_path, |mut _req, ctx| async move {
             let id = get_id!(ctx);
@@ -279,7 +288,15 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             headers.append(CacheControl::name().as_ref(), "no-cache")?;
             match status(id, &CFDBClient{ctx}).await {
                 Ok(Some(VPProgress::Started{..})) => Ok(Response::empty().unwrap().with_status(202)),
-                Ok(Some(VPProgress::OPState(state))) => Ok(Response::from_json(&state).unwrap().with_status(202)),
+                Ok(Some(VPProgress::OPState(state))) => {
+                    let status = state.status()
+                    .map(|s| s.as_bytes().to_vec())
+                    .map_err(|e| Error::Internal(e.to_string().into()))?;
+                    let mut headers = Headers::new();
+                    headers.set("content-type", "text/plain")?;
+
+                    Ok(Response::from_bytes(status)?.with_headers(headers).with_status(200))
+                }
                 Ok(Some(VPProgress::Failed(errors))) => Ok(Response::from_json(&errors).unwrap().with_status(417)),
                 Ok(Some(VPProgress::Done(vc))) => Response::from_json(&vc),
                 Ok(None) => Ok(Response::empty().unwrap().with_status(204)),

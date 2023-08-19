@@ -12,7 +12,7 @@ cargo install worker-build
 Re-run these commands each time you make a change.
 ```bash
 worker-build --dev
-wrangler dev --var APP_BASE_URL:http://localhost:8787
+wrangler dev --var API_BASE_URL:http://localhost:8787 --var APP_BASE_URL:http://localhost:8080
 ```
 
 ## Publish Cloudflare Worker

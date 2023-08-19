@@ -5,8 +5,6 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::CustomError;
-
 // #[cfg(target_arch = "wasm32")]
 pub mod cf;
 
@@ -44,18 +42,9 @@ pub enum VPProgress {
     Done(serde_json::Value),
 }
 
-impl VPProgress {
-    pub fn to_html(&self) -> Result<String, CustomError> {
-        let status = self
-            .status()
-            .map_err(|e| CustomError::InternalError(e.to_string()))?;
-        Ok(format!(
-            r#"<textarea readonly=true onload='this.style.height = "";this.style.height = this.scrollHeight + "px"'>\n{status}\n</textarea>"#
-        ))
-    }
-
+impl OnlinePresentmentState {
     pub fn status(&self) -> Result<String> {
-        let Self::OPState(OnlinePresentmentState {
+        let Self {
             verifier_id,
             protocol,
             transaction_id,
@@ -68,8 +57,7 @@ impl VPProgress {
             v_sec_2,
             v_sec_3,
             ..
-        }) = self
-        else { bail!("unexpected state") };
+        } = self;
         let started = timestamp.unix_timestamp();
         let v_data_1 = v_data_1
             .map(|r| if r { "OK" } else { "Failed" })
@@ -104,6 +92,13 @@ Scenario: {scenario}
 [ts] Check: V_SEC_3: {v_sec_3}
             "#
         ))
+    }
+}
+
+impl VPProgress {
+    pub fn status(&self) -> Result<String> {
+        let Self::OPState(opstate) = self else { bail!("unexpected state") };
+        opstate.status()
     }
 }
 

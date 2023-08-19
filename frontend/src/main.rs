@@ -1,7 +1,10 @@
 use url::Url;
+use uuid::Uuid;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
+mod outcome;
+use outcome::*;
 mod polling;
 use polling::*;
 lazy_static::lazy_static! {
@@ -16,6 +19,8 @@ enum Route {
     VerifymDL,
     #[at("/verify_age_over_18")]
     VerifyAge,
+    #[at("/outcome/:id")]
+    Outcome { id: Uuid },
     #[not_found]
     #[at("/404")]
     NotFound,
@@ -43,6 +48,7 @@ fn switch(routes: &Route) -> Html {
         Route::VerifyAge => {
             html! { <><h1>{"Verify Age"}</h1> <VerifyPoll presentation = "age_over_18" /></> }
         }
+        Route::Outcome { id } => html! { <Outcome id = {id.clone()} /> },
         Route::NotFound => html! { <Redirect<Route> to={Route::Home}/> },
     }
 }
