@@ -19,6 +19,7 @@ pub struct StartedInfo {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OnlinePresentmentState {
     pub unattended_session_manager: UnattendedSessionManager,
+    pub presentation_type: String,
     pub verifier_id: String,
     pub protocol: String,
     pub transaction_id: String,
