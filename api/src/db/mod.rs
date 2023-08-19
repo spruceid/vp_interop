@@ -26,19 +26,8 @@ pub struct OnlinePresentmentState {
     pub transaction_id: String,
     #[serde(with = "time::serde::rfc3339")]
     pub timestamp: OffsetDateTime,
-    pub v_data_1: Option<bool>,
-    pub v_data_2: Option<bool>,
-    pub v_data_3: Option<bool>,
-    pub v_sec_1: Option<bool>,
-    pub v_sec_2: Option<bool>,
-    pub v_sec_3: Option<bool>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct TestProgress {
-    pub verifier_id: String,
-    pub protocol: String,
-    pub transaction_id: String,
+    pub complete: bool,
+    pub scenario: String,
     pub v_data_1: Option<bool>,
     pub v_data_2: Option<bool>,
     pub v_data_3: Option<bool>,
@@ -51,15 +40,18 @@ pub struct TestProgress {
 pub enum VPProgress {
     Started(StartedInfo),
     OPState(OnlinePresentmentState),
-    InteropChecks(TestProgress),
     Failed(serde_json::Value),
     Done(serde_json::Value),
 }
 
 impl VPProgress {
     pub fn to_html(&self) -> Result<String, CustomError> {
-        let inner = serde_json::to_string(&self)?;
-        Ok(format!("<p>{inner}</p>"))
+        let status = self.status();
+        Ok(format!("<p>{status}</p>"))
+    }
+
+    pub fn status(&self) -> String {
+        todo!()
     }
 }
 

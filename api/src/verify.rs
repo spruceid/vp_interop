@@ -1,6 +1,5 @@
 use crate::db::DBClient;
 use crate::db::OnlinePresentmentState;
-use crate::db::TestProgress;
 use crate::mdl_data_fields::age_over_mdl_request;
 use crate::minimal_mdl_request;
 use crate::Base64urlUInt;
@@ -44,11 +43,14 @@ pub async fn configured_openid4vp_mdl_request(
 ) -> Result<String, CustomError> {
     let presentation = params.presentation_type;
     let requested_fields: NonEmptyMap<Option<String>, Option<bool>>;
+    let scenario: String;
 
     if presentation == "age_over_18" {
         requested_fields = NonEmptyMap::try_from(age_over_mdl_request())?;
-    } else if presentation == *"mDL" {
+        scenario = "SCE_4VP_2".into();
+    } else if presentation == "mDL" {
         requested_fields = NonEmptyMap::try_from(minimal_mdl_request())?;
+        scenario = "SCE_4VP_1".into();
     } else {
         return Err(CustomError::BadRequest(
             "Unsupported presentation type".to_string(),
@@ -101,6 +103,7 @@ pub async fn configured_openid4vp_mdl_request(
         "direct_post.jwt".to_string(),
         client_metadata,
         ec_key_pair,
+        scenario,
         db,
     )
     .await?;
@@ -133,6 +136,7 @@ pub async fn openid4vp_mdl_request(
     response_mode: String,
     client_metadata: ClientMetadata,
     ec_key_pair: EcKeyPair<NistP256>,
+    scenario: String,
     db: &mut dyn DBClient,
 ) -> Result<RequestObject, Openid4vpError> {
     let nonce = gen_nonce().secret().clone();
@@ -157,6 +161,8 @@ pub async fn openid4vp_mdl_request(
         protocol: "OpenID4VP".to_string(),
         transaction_id: id.clone().to_string(),
         timestamp,
+        scenario,
+        complete: false,
         v_data_1: Some(true),
         v_data_2: None,
         v_data_3: None,
@@ -175,7 +181,7 @@ pub async fn validate_openid4vp_mdl_response(
     mut api_base: Url,
 ) -> Result<Url, Openid4vpError> {
     let vp_progress = db.get_vp(id).await?;
-    if let Some(VPProgress::OPState(progress)) = vp_progress {
+    if let Some(VPProgress::OPState(mut progress)) = vp_progress {
         let mut session_manager = progress.unattended_session_manager.clone();
 
         let result = isomdl180137::verify::decrypted_authorization_response(
@@ -188,21 +194,12 @@ pub async fn validate_openid4vp_mdl_response(
 
         match result {
             Ok(_r) => {
-                let test_checks = TestProgress {
-                    verifier_id: progress.verifier_id,
-                    protocol: progress.protocol,
-                    transaction_id: progress.transaction_id,
-                    v_data_1: progress.v_data_1,
-                    v_data_2: Some(true),
-                    v_data_3: Some(true),
-                    v_sec_1: Some(true),
-                    v_sec_2: None,
-                    v_sec_3: None,
-                };
+                progress.v_data_2 = Some(true);
+                progress.v_data_3 = Some(true);
+                progress.v_sec_1 = Some(true);
                 //TODO: check v_sec_2 and v_sec_3
                 //TODO; bring saved to db in line with intent_to_retain from request
-                db.put_vp(id, VPProgress::InteropChecks(test_checks))
-                    .await?;
+                db.put_vp(id, VPProgress::OPState(progress)).await?;
                 api_base
                     .path_segments_mut()
                     .map_err(|_| Openid4vpError::OID4VPError)?
@@ -339,6 +336,7 @@ pub(crate) mod tests {
             response_mode,
             client_metadata,
             verifier_key_pair,
+            "SCE_4VP_2".into(),
             &mut db,
         )
         .await

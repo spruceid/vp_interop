@@ -253,7 +253,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                             }
                         };
                         match verify::validate_openid4vp_mdl_response(jwe, id, &mut CFDBClient {ctx}, app_base_url).await {
-                            Ok(redirect_uri) => Response::redirect(redirect_uri),
+                            Ok(redirect_uri) => Response::from_json(&json!({ "redirect_uri": redirect_uri })),
                             Err(e) => return CustomError::InternalError(e.to_string()).into(),
                         }.and_then(|r| r.with_cors(&get_cors()))
                     } else {
@@ -280,7 +280,6 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
             match status(id, &CFDBClient{ctx}).await {
                 Ok(Some(VPProgress::Started{..})) => Ok(Response::empty().unwrap().with_status(202)),
                 Ok(Some(VPProgress::OPState(state))) => Ok(Response::from_json(&state).unwrap().with_status(202)),
-                Ok(Some(VPProgress::InteropChecks(check))) => Ok(Response::from_json(&check).unwrap().with_status(200)),
                 Ok(Some(VPProgress::Failed(errors))) => Ok(Response::from_json(&errors).unwrap().with_status(417)),
                 Ok(Some(VPProgress::Done(vc))) => Response::from_json(&vc),
                 Ok(None) => Ok(Response::empty().unwrap().with_status(204)),
