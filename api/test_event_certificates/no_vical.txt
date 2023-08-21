@@ -1,0 +1,8 @@
+The following certificates are likely not included in AAMVA's VICAL for this event:
+- BDR
+- Google
+- HID
+- Panasonic
+- Scytales
+
+It is recommended to trust these certificates individually.

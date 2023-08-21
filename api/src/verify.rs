@@ -60,7 +60,7 @@ pub async fn configured_openid4vp_mdl_request(
 
     let response_uri = base_url.join(&format!("{}/{}/mdl_response", API_PREFIX, id))?;
 
-    let vk = include_str!("./test/verifier_testing_key.b64");
+    let vk = include_str!("./test/test_event_reader_key.b64");
     let vk_bytes = base64::decode(vk)?;
     let vsk: p256::SecretKey = p256::SecretKey::from_sec1_der(&vk_bytes)?;
     let mut verifier_key = ssi::jwk::p256_parse(&vsk.public_key().to_sec1_bytes())?;
@@ -70,7 +70,7 @@ pub async fn configured_openid4vp_mdl_request(
         verifier_key.params = Params::EC(p)
     }
 
-    let x509c = include_str!("./test/verifier_test_cert.b64");
+    let x509c = include_str!("./test/test_event_reader_certificate.b64");
     let x509_bytes = base64::decode(x509c)?;
     let x509_certificate = x509_certificate::X509Certificate::from_der(x509_bytes)?;
 
@@ -320,7 +320,7 @@ pub(crate) mod tests {
             }
         );
 
-        let vk = include_str!("./test/verifier_testing_key.b64");
+        let vk = include_str!("./test/test_event_reader_key.b64");
         let vk_bytes = base64::decode(vk).unwrap();
         let vsk: p256::SecretKey = p256::SecretKey::from_sec1_der(&vk_bytes).unwrap();
         let mut verifier_key = ssi::jwk::p256_parse(&vsk.public_key().to_sec1_bytes()).unwrap();
@@ -337,7 +337,7 @@ pub(crate) mod tests {
         let mdoc: Mdoc = serde_cbor::from_slice(test_mdoc).unwrap();
         let response_uri = "response_uri".to_string();
         let presentation_id = "presentation_id".to_string();
-        let x509c = include_str!("./test/verifier_test_cert.b64");
+        let x509c = include_str!("./test/test_event_reader_certificate.b64");
         let x509_bytes = base64::decode(x509c).unwrap();
         let x509_certificate =
             x509_certificate::X509Certificate::from_der(x509_bytes.clone()).unwrap();
