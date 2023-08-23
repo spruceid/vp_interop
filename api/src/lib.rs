@@ -123,6 +123,12 @@ impl From<josekit::JoseError> for CustomError {
     }
 }
 
+impl From<x509_cert::der::Error> for CustomError {
+    fn from(value: x509_cert::der::Error) -> Self {
+        CustomError::BadRequest(value.to_string())
+    }
+}
+
 impl From<CustomError> for Result<Response> {
     fn from(error: CustomError) -> Self {
         match error {
