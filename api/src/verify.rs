@@ -115,7 +115,7 @@ pub async fn configured_openid4vp_mdl_request(
     let payload = openid4vp_mdl_request(
         id,
         presentation,
-        NonEmptyMap::new("org.iso.18013.5.1.mDL".to_string(), requested_fields),
+        NonEmptyMap::new("org.iso.18013.5.1".to_string(), requested_fields),
         client_id,
         response_uri.to_string(),
         "mDL".to_string(),
