@@ -89,7 +89,7 @@ pub async fn configured_openid4vp_mdl_request(
             GeneralName::UniformResourceIdentifier(uri) => Some(uri.to_string()),
             _ => None,
         })
-        .collect();
+        .next().ok_or(CustomError::InternalError("The reader has a certificate without a SubjectAltName while using client_id_scheme x509_san_uri".to_string()))?;
 
     let vp_formats = json!({"mso_mdoc": {
         "alg": [
