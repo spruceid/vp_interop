@@ -6,7 +6,6 @@ use crate::Base64urlUInt;
 use crate::CustomError;
 use crate::Params;
 use crate::{gen_nonce, VPProgress};
-use anyhow::Context;
 use isomdl::definitions::helpers::NonEmptyMap;
 use isomdl::definitions::oid4vp::DeviceResponse;
 use isomdl180137::verify::ReaderSession;
@@ -21,6 +20,10 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 use uuid::Uuid;
 use worker::Url;
+use x509_cert::{
+    der::Decode,
+    ext::pkix::{name::GeneralName, SubjectAltName},
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct DemoParams {
@@ -72,11 +75,22 @@ pub async fn configured_openid4vp_mdl_request(
 
     let x509c = include_str!("./test/test_event_reader_certificate.b64");
     let x509_bytes = base64::decode(x509c)?;
-    let x509_certificate = x509_certificate::X509Certificate::from_der(x509_bytes)?;
+    let x509_certificate = x509_cert::Certificate::from_der(&x509_bytes)?;
 
     let client_id = x509_certificate
-        .subject_common_name()
-        .context("no client_id in certificate")?;
+        .tbs_certificate
+        .filter::<SubjectAltName>()
+        .filter_map(|r| match r {
+            Ok((_crit, san)) => Some(san.0.into_iter()),
+            Err(_e) => None,
+        })
+        .flatten()
+        .filter_map(|gn| match gn {
+            GeneralName::UniformResourceIdentifier(uri) => Some(uri.to_string()),
+            _ => None,
+        })
+        .collect();
+
     let vp_formats = json!({"mso_mdoc": {
         "alg": [
             "ES256"
