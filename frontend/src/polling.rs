@@ -12,7 +12,7 @@ use yew::{prelude::*, Component, Context, Html};
 use crate::API_BASE;
 
 const REFRESH_INTERVAL: u32 = 3000; // milliseconds
-const COMMON_NAME: &str = "SpruceID ISO18013-7 Test Certificate Reader";
+const COMMON_NAME: &str = "spruceid.xyz/vp_interop";
 
 enum VerifyPollState {
     PreScan {
