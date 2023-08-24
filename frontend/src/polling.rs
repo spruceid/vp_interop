@@ -12,7 +12,7 @@ use yew::{prelude::*, Component, Context, Html};
 use crate::API_BASE;
 
 const REFRESH_INTERVAL: u32 = 3000; // milliseconds
-const COMMON_NAME: &str = "spruceid.xyz/vp_interop";
+const SAN: &str = "spruceid.xyz/vp_interop";
 
 enum VerifyPollState {
     PreScan {
@@ -365,7 +365,7 @@ fn gen_link_img(uuid: &Uuid, params: &Params) -> (String, String) {
     let mut url: Url = Url::parse("mdoc-openid4vp://").unwrap();
     url.query_pairs_mut()
         .append_pair("request_uri", request_uri.as_str())
-        .append_pair("client_id", COMMON_NAME);
+        .append_pair("client_id", SAN);
     let url = url.to_string();
 
     let code = QrCode::new(url.clone()).unwrap();
