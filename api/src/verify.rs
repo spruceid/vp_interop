@@ -66,7 +66,6 @@ pub async fn configured_openid4vp_mdl_request(
     let vsk: p256::SecretKey = p256::SecretKey::from_sec1_der(&vk_bytes)?;
     let verifier_key: ssi::jwk::JWK = serde_json::from_str(&vsk.to_jwk_string())?;
 
-    println!("verifier");
     let x509c = include_str!("./test/test_event_reader_certificate.b64");
     let x509_bytes = base64::decode(x509c)?;
     let x509_certificate = x509_cert::Certificate::from_der(&x509_bytes)?;
@@ -563,7 +562,6 @@ pub(crate) mod tests {
         let der_bytes = base64::decode(der).unwrap();
         let _device_key: p256::ecdsa::SigningKey =
             p256::SecretKey::from_sec1_der(&der_bytes).unwrap().into();
-        let cek_pair: EcKeyPair<NistP256> = josekit::jwe::ECDH_ES.generate_ec_key_pair().unwrap();
         let parsed_req: RequestObject =
             ssi::jwt::decode_verify(&req_jwt, &parsed_verifier_key).unwrap();
         //assert_eq!(verifier_key.to_public(), parsed_verifier_key);
@@ -592,7 +590,7 @@ pub(crate) mod tests {
                 )
                 .await
                 .unwrap();
-
+                //TODO: insert signature, not key
                 let response = complete_mdl_response(prepared_response, state, der_bytes)
                     .await
                     .unwrap();
@@ -603,18 +601,5 @@ pub(crate) mod tests {
                 client_metadata_uri: _s,
             } => {}
         }
-
-        println!("mdoc_esk: {:?}", cek_pair.to_jwk_private_key());
-
-        //TODO: insert signature, not the key
-
-        // // Then mdoc app posts response to response endpoint
-
-        //Verifier decrypts the response
-        // let result = validate_openid4vp_mdl_response(response, session_id, &mut db)
-        //    .await
-        //    .unwrap();
-
-        // println!("result: {:?}", result);
     }
 }
