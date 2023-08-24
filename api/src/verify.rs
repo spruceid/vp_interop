@@ -2,9 +2,7 @@ use crate::db::DBClient;
 use crate::db::OnlinePresentmentState;
 use crate::mdl_data_fields::age_over_mdl_request;
 use crate::minimal_mdl_request;
-use crate::Base64urlUInt;
 use crate::CustomError;
-use crate::Params;
 use crate::{gen_nonce, VPProgress};
 use isomdl::definitions::helpers::NonEmptyMap;
 use isomdl::definitions::oid4vp::DeviceResponse;
@@ -66,13 +64,9 @@ pub async fn configured_openid4vp_mdl_request(
     let vk = include_str!("./test/test_event_reader_key.b64");
     let vk_bytes = base64::decode(vk)?;
     let vsk: p256::SecretKey = p256::SecretKey::from_sec1_der(&vk_bytes)?;
-    let mut verifier_key = ssi::jwk::p256_parse(&vsk.public_key().to_sec1_bytes())?;
-    let params: Params = verifier_key.params.clone();
-    if let Params::EC(mut p) = params {
-        p.ecc_private_key = Some(Base64urlUInt(vsk.to_bytes().to_vec()));
-        verifier_key.params = Params::EC(p)
-    }
+    let verifier_key: ssi::jwk::JWK = serde_json::from_str(&vsk.to_jwk_string())?;
 
+    println!("verifier");
     let x509c = include_str!("./test/test_event_reader_certificate.b64");
     let x509_bytes = base64::decode(x509c)?;
     let x509_certificate = x509_cert::Certificate::from_der(&x509_bytes)?;
@@ -426,7 +420,7 @@ pub(crate) mod tests {
             p256::SecretKey::from_sec1_der(&der_bytes).unwrap().into();
         let parsed_req: RequestObject =
             ssi::jwt::decode_verify(&request_object_jwt, &parsed_verifier_key).unwrap();
-        //assert_eq!(verifier_key.to_public(), parsed_verifier_key);
+        assert_eq!(verifier_key.to_public(), parsed_verifier_key);
 
         let mdoc_generated_nonce: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)
@@ -452,19 +446,14 @@ pub(crate) mod tests {
         let response = complete_mdl_response(prepared_response, state, der_bytes)
             .await
             .unwrap();
+
         // // Then mdoc app posts response to response endpoint
-
-        //println!("response: {:#?}", response);
-
         //Verifier decrypts the response
         let result = validate_openid4vp_mdl_response(response, session_id, &mut db, base_url)
             .await
             .unwrap();
 
         println!("result: {:?}", result);
-        // //TODO; bring saved to db in line with intent_to_retain from request
-
-        // println!("result: {:#?}", result);
     }
 
     #[tokio::test]

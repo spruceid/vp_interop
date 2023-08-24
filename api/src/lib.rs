@@ -3,8 +3,6 @@ use headers::{CacheControl, ContentType, Header};
 use isomdl::definitions::helpers::non_empty_map::Error as NonEmptyMapError;
 use mdl_data_fields::minimal_mdl_request;
 use serde_json::json;
-use ssi::jwk::Base64urlUInt;
-use ssi::jwk::Params;
 use ssi::jwk::JWK;
 use thiserror::Error;
 use uuid::Uuid;
