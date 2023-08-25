@@ -2,7 +2,7 @@ name = "vp_interop_api"
 main = "build/worker/shim.mjs"
 
 workers_dev = false
-routes = ["api.vp.interop.spruceid.xyz/*"]
+routes = ["api.vp.interop.spruceid.xyz/*", "api.vp.interop.spruceid.dev/*"]
 
 compatibility_date = "2022-11-21"
 
@@ -12,9 +12,9 @@ kv_namespaces = [
 
 [vars]
 WORKERS_RS_VERSION = "0.0.12"
-API_BASE_URL = "https://api.vp.interop.spruceid.xyz"
-APP_BASE_URL = "https://app.vp.interop.spruceid.xyz"
-DID = "did:web:api.vp.interop.spruceid.xyz"
+API_BASE_URL = "https://api.vp.interop.spruceid.dev"
+APP_BASE_URL = "https://app.vp.interop.spruceid.dev"
+DID = "did:web:api.vp.interop.spruceid.dev"
 
 [env.preview]
 routes = []
