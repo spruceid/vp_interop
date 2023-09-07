@@ -7,9 +7,9 @@ use crate::{gen_nonce, VPProgress};
 use isomdl::definitions::helpers::NonEmptyMap;
 use isomdl::definitions::oid4vp::DeviceResponse;
 use isomdl180137::present::OID4VPHandover;
+use isomdl180137::present::UnattendedSessionTranscript;
 use isomdl180137::verify::ReaderSession;
 use isomdl180137::verify::UnattendedSessionManager;
-use isomdl180137::present::UnattendedSessionTranscript;
 use josekit::jwk::alg::ec::EcKeyPair;
 use oidc4vp::mdl_request::ClientMetadata;
 use oidc4vp::{mdl_request::RequestObject, presentment::Verify, utils::Openid4vpError};
@@ -24,7 +24,6 @@ use x509_cert::{
     der::Decode,
     ext::pkix::{name::GeneralName, SubjectAltName},
 };
-
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct DemoParams {
@@ -215,13 +214,18 @@ pub async fn validate_openid4vp_mdl_response(
 
         progress.v_sec_1 = Some(true).into();
         let mdoc_generated_nonce = match result.1 {
-            Value::String(s) => {s},
-            _ => {return Err(Openid4vpError::Empty("mdoc_generated_nonce should be a string".to_string()))}
+            Value::String(s) => s,
+            _ => {
+                return Err(Openid4vpError::Empty(
+                    "mdoc_generated_nonce should be a string".to_string(),
+                ))
+            }
         };
         let req = progress.request.clone();
         if let (Some(u), Some(n)) = (req.response_uri, req.nonce) {
             let handover = OID4VPHandover(mdoc_generated_nonce, req.client_id, u, n);
-            let session_transcript: UnattendedSessionTranscript = UnattendedSessionTranscript::new(handover);
+            let session_transcript: UnattendedSessionTranscript =
+                UnattendedSessionTranscript::new(handover);
             let result = session_manager.handle_response(device_response, session_transcript);
 
             match result {
@@ -238,7 +242,7 @@ pub async fn validate_openid4vp_mdl_response(
                         .map_err(|_| Openid4vpError::OID4VPError)?
                         .push("outcome")
                         .push(&id.to_string());
-    
+
                     Ok(app_base)
                 }
                 Err(e) => {
@@ -252,10 +256,10 @@ pub async fn validate_openid4vp_mdl_response(
                 }
             }
         } else {
-            return Err(Openid4vpError::Empty("missing nonce or response_uri in the request object".to_string()))
+            return Err(Openid4vpError::Empty(
+                "missing nonce or response_uri in the request object".to_string(),
+            ));
         }
-
-
     } else {
         Err(Openid4vpError::Empty(
             "Could not retrieve transaction from database".to_string(),

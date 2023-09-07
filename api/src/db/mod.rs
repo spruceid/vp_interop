@@ -10,7 +10,6 @@ use uuid::Uuid;
 pub mod cf;
 
 const KV_NAMESPACE: &str = "JWT_VC_INTEROP";
-const TTL: u64 = 300; // 5min
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StartedInfo {
