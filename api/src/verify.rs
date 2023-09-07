@@ -256,9 +256,9 @@ pub async fn validate_openid4vp_mdl_response(
                 }
             }
         } else {
-            return Err(Openid4vpError::Empty(
+            Err(Openid4vpError::Empty(
                 "missing nonce or response_uri in the request object".to_string(),
-            ));
+            ))
         }
     } else {
         Err(Openid4vpError::Empty(
