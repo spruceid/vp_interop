@@ -123,7 +123,9 @@ Scenario: {scenario}
 
 impl VPProgress {
     pub fn status(&self) -> Result<String> {
-        let Self::OPState(opstate) = self else { bail!("unexpected state") };
+        let Self::OPState(opstate) = self else {
+            bail!("unexpected state")
+            };
         opstate.status()
     }
 }
