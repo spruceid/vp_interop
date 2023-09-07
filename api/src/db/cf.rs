@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use uuid::Uuid;
 use worker::RouteContext;
 
-use super::{DBClient, VPProgress, KV_NAMESPACE, TTL};
+use super::{DBClient, VPProgress, KV_NAMESPACE};
 
 pub struct CFDBClient {
     pub ctx: RouteContext<()>,
@@ -33,7 +33,6 @@ impl DBClient for CFDBClient {
                     .map_err(|e| anyhow!("Failed to serialize vp info: {}", e))?,
             )
             .map_err(|e| anyhow!("Failed to build KV put: {}", e))?
-            .expiration_ttl(TTL)
             .execute()
             .await
             .map_err(|e| anyhow!("Failed to put KV: {}", e))?;

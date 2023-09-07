@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use isomdl180137::verify::UnattendedSessionManager;
+use oidc4vp::mdl_request::RequestObject;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -19,6 +20,7 @@ pub struct StartedInfo {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OnlinePresentmentState {
     pub unattended_session_manager: UnattendedSessionManager,
+    pub request: RequestObject,
     pub presentation_type: String,
     pub verifier_id: String,
     pub protocol: String,
