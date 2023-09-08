@@ -234,7 +234,7 @@ pub async fn validate_openid4vp_mdl_response(
                         .ok()
                         .into();
                     progress.v_sec_1 = Some(true).into();
-                    progress.v_sec_3 = Some(true).into();
+                    //progress.v_sec_3 = Some(true).into();
                     //TODO: check v_sec_2 and v_sec_3
                     //TODO; bring saved to db in line with intent_to_retain from request
                     db.put_vp(id, VPProgress::OPState(progress)).await?;
