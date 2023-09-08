@@ -12,7 +12,7 @@ use yew::{prelude::*, Component, Context, Html};
 use crate::API_BASE;
 
 const REFRESH_INTERVAL: u32 = 3000; // milliseconds
-const SAN: &str = "spruceid.xyz/vp_interop";
+const SAN: &str = "https://spruceid.xyz/vp_interop";
 
 enum VerifyPollState {
     PreScan {
