@@ -321,7 +321,7 @@ pub(crate) mod tests {
 
     #[tokio::test]
     async fn mdl_presentation_e2e() {
-        let _base_url = Url::parse("http://example.com").unwrap();
+        let base_url = Url::parse("http://example.com").unwrap();
         // Set up request and load keys, cert, documents
         let mdl_data_fields = mdl_data_fields::age_over_mdl_request();
         let namespace = NonEmptyMap::try_from(mdl_data_fields).unwrap();
@@ -465,17 +465,17 @@ pub(crate) mod tests {
         };
 
         //TODO: insert signature, not the key
-        let _response = complete_mdl_response(prepared_response, state, der_bytes)
+        let response = complete_mdl_response(prepared_response, state, der_bytes)
             .await
             .unwrap();
 
         // Then mdoc app posts response to response endpoint
         //Verifier decrypts and validates the response
-        // let result = validate_openid4vp_mdl_response(response, session_id, &mut db, base_url)
-        //     .await
-        //     .unwrap();
+        let result = validate_openid4vp_mdl_response(response, session_id, &mut db, base_url)
+            .await
+            .unwrap();
 
-        // println!("result: {:?}", result);
+        println!("result: {:?}", result);
     }
 
     #[tokio::test]
