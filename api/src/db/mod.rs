@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use isomdl180137::verify::UnattendedSessionManager;
+use oidc4vp::mdl_request::RequestObject;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -9,7 +10,6 @@ use uuid::Uuid;
 pub mod cf;
 
 const KV_NAMESPACE: &str = "JWT_VC_INTEROP";
-const TTL: u64 = 300; // 5min
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StartedInfo {
@@ -19,6 +19,7 @@ pub struct StartedInfo {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OnlinePresentmentState {
     pub unattended_session_manager: UnattendedSessionManager,
+    pub request: RequestObject,
     pub presentation_type: String,
     pub verifier_id: String,
     pub protocol: String,
@@ -122,7 +123,9 @@ Scenario: {scenario}
 
 impl VPProgress {
     pub fn status(&self) -> Result<String> {
-        let Self::OPState(opstate) = self else { bail!("unexpected state") };
+        let Self::OPState(opstate) = self else {
+            bail!("unexpected state")
+        };
         opstate.status()
     }
 }

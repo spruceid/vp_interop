@@ -23,7 +23,7 @@ pub async fn prepare_openid4vp_mdl_response(
             response_uri.unwrap(),
             nonce.unwrap(),
         );
-        let session_transcript = UnattendedSessionTranscript(handover);
+        let session_transcript = UnattendedSessionTranscript::new(handover);
         //tag 24 the session transcript
         let unattended_session_manager =
             UnattendedSessionManager::new(session_transcript, documents)?;
