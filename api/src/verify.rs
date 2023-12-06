@@ -63,12 +63,12 @@ pub async fn configured_openid4vp_mdl_request(
 
     let response_uri = base_url.join(&format!("{}/{}/mdl_response", API_PREFIX, id))?;
 
-    let vk = include_str!("./test/paris_reader_signer.b64");
+    let vk = include_str!("./test/spruceid_paris_reader_signer_key.b64");
     let vk_bytes = base64::decode(vk)?;
     let vsk: p256::SecretKey = p256::SecretKey::from_sec1_der(&vk_bytes)?;
     let verifier_key: ssi::jwk::JWK = serde_json::from_str(&vsk.to_jwk_string())?;
 
-    let x509c = include_str!("./test/spruceid_paris_reader_signer.b64");
+    let x509c = include_str!("./test/spruceid_paris_reader_signer_cert.b64");
     let x509_bytes = base64::decode(x509c)?;
     let x509_certificate = x509_cert::Certificate::from_der(&x509_bytes)?;
 
